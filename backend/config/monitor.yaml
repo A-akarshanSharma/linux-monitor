@@ -1,0 +1,37 @@
+# Application configuration. Every key can be overridden with an environment
+# variable named MONITOR_<KEY> (e.g. MONITOR_POLLING_INTERVAL_SECONDS=5).
+
+polling_interval_seconds: 10
+top_processes_count: 5
+
+# Filesystem types the disk collector ignores (pseudo / virtual filesystems).
+# `*` wildcards are supported.
+# `9p` and `drvfs` are how WSL exposes Windows drives such as /mnt/c;
+# remove them if you want those reported too.
+disk_exclude_fstypes:
+  - tmpfs
+  - devtmpfs
+  - squashfs
+  - overlay
+  - proc
+  - sysfs
+  - cgroup
+  - cgroup2
+  - devpts
+  - securityfs
+  - debugfs
+  - tracefs
+  - configfs
+  - fusectl
+  - pstore
+  - bpf
+  - autofs
+  - mqueue
+  - hugetlbfs
+  - ramfs
+  - binfmt_misc
+  - nsfs
+  - efivarfs
+  - 9p
+  - drvfs
+  - "fuse.*"   # wildcard: sshfs, rclone, gvfs, snapfuse, ...

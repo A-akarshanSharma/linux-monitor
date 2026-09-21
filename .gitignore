@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Secrets / local configuration - never commit
+.env
+backend/.env
+!.env.example
+
+# Runtime data
+backend/data/
+*.db
+*.sqlite3
+*.log
+
+# Node / frontend (used from Phase 6)
+node_modules/
+frontend/dist/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
