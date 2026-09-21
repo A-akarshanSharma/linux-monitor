@@ -69,3 +69,11 @@ def test_shipped_yaml_is_valid(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert settings.polling_interval_seconds >= 1
     assert "fuse.*" in settings.disk_exclude_fstypes
+
+
+@pytest.mark.parametrize("port", ["0", "65536", "-1"])
+def test_backend_port_must_be_a_valid_port(monkeypatch: pytest.MonkeyPatch, port: str) -> None:
+    monkeypatch.setenv("MONITOR_BACKEND_PORT", port)
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)

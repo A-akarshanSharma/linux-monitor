@@ -61,3 +61,13 @@ def test_collector_failure_is_wrapped_with_collector_name(
     assert exc_info.value.collector == "memory"
     assert "cannot read /proc/meminfo" in str(exc_info.value)
     assert isinstance(exc_info.value.__cause__, RuntimeError)
+
+
+def test_top_processes_override_limits_list_size(settings: Settings) -> None:
+    collector = SnapshotCollector(settings)
+    collector.prime()
+
+    result = collector.collect(top_processes=1)
+
+    assert len(result.processes.top_by_cpu) == 1
+    assert len(result.processes.top_by_memory) == 1

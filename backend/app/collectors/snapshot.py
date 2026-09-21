@@ -50,9 +50,13 @@ class SnapshotCollector:
         prime_process_cpu()
         self._network.collect()
 
-    def collect(self) -> MetricsSnapshot:
-        """Collect a full snapshot. Raises :class:`CollectionError` on failure."""
+    def collect(self, top_processes: int | None = None) -> MetricsSnapshot:
+        """Collect a full snapshot. Raises :class:`CollectionError` on failure.
+
+        ``top_processes`` overrides the configured size of the top-CPU / top-memory lists.
+        """
         s = self._settings
+        top_n = top_processes if top_processes is not None else s.top_processes_count
         return MetricsSnapshot(
             collected_at=datetime.now(timezone.utc),
             system=_run("system_info", collect_system_info),
@@ -60,5 +64,5 @@ class SnapshotCollector:
             memory=_run("memory", collect_memory),
             disks=_run("disk", lambda: collect_disks(s.disk_exclude_fstypes)),
             network=_run("network", self._network.collect),
-            processes=_run("processes", lambda: collect_processes(s.top_processes_count)),
+            processes=_run("processes", lambda: collect_processes(top_n)),
         )

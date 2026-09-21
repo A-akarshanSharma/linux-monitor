@@ -29,6 +29,9 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 REPO_ROOT = BACKEND_DIR.parent
 DEFAULT_CONFIG_FILE = BACKEND_DIR / "config" / "monitor.yaml"
 
+# Upper bound for "top N processes" lists (config value and API ?limit=).
+MAX_TOP_PROCESSES = 50
+
 DEFAULT_DISK_EXCLUDE_FSTYPES: list[str] = [
     "tmpfs", "devtmpfs", "squashfs", "overlay", "proc", "sysfs", "cgroup", "cgroup2",
     "devpts", "securityfs", "debugfs", "tracefs", "configfs", "fusectl", "pstore",
@@ -50,8 +53,11 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     log_format: Literal["json", "text"] = "json"
 
+    backend_host: str = "127.0.0.1"
+    backend_port: int = Field(default=8000, ge=1, le=65535)
+
     polling_interval_seconds: int = Field(default=10, ge=1, le=3600)
-    top_processes_count: int = Field(default=5, ge=1, le=50)
+    top_processes_count: int = Field(default=5, ge=1, le=MAX_TOP_PROCESSES)
     disk_exclude_fstypes: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: list(DEFAULT_DISK_EXCLUDE_FSTYPES)
     )

@@ -1,6 +1,10 @@
 # Application configuration. Every key can be overridden with an environment
 # variable named MONITOR_<KEY> (e.g. MONITOR_POLLING_INTERVAL_SECONDS=5).
 
+# API server. Use 0.0.0.0 to accept connections from other machines / containers.
+backend_host: 127.0.0.1
+backend_port: 8000
+
 polling_interval_seconds: 10
 top_processes_count: 5
 

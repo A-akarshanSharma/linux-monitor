@@ -34,3 +34,35 @@ def _restore_root_logger():
     yield
     root.handlers[:] = handlers
     root.setLevel(level)
+
+
+@pytest.fixture
+def fake_service():
+    from tests.factories import FakeLiveMetrics
+
+    return FakeLiveMetrics()
+
+
+@pytest.fixture
+def make_client(settings: Settings):
+    """Build a TestClient wired to a fake metrics service (no real psutil, no lifespan).
+
+    ``raise_server_exceptions=False`` makes unhandled errors surface as the 500
+    response a real client would see, instead of re-raising into the test.
+    """
+    from fastapi.testclient import TestClient
+
+    from app.api.deps import get_live_metrics
+    from app.main import create_app
+
+    def _make(service) -> TestClient:
+        app = create_app(settings)
+        app.dependency_overrides[get_live_metrics] = lambda: service
+        return TestClient(app, raise_server_exceptions=False)
+
+    return _make
+
+
+@pytest.fixture
+def client(make_client, fake_service):
+    return make_client(fake_service)

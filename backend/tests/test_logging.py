@@ -47,3 +47,30 @@ def test_setup_logging_is_idempotent_and_writes_json(capsys: pytest.CaptureFixtu
     lines = [line for line in capsys.readouterr().err.splitlines() if line]
     assert len(lines) == 1
     assert json.loads(lines[0])["port"] == 8000
+
+
+def test_setup_logging_keeps_handlers_it_did_not_install() -> None:
+    foreign = logging.NullHandler()
+    root = logging.getLogger()
+    root.addHandler(foreign)
+
+    setup_logging("INFO", "json")
+
+    assert foreign in root.handlers
+
+
+def test_uvicorn_loggers_are_routed_through_the_root_handler() -> None:
+    uvicorn_logger = logging.getLogger("uvicorn.error")
+    uvicorn_logger.addHandler(logging.NullHandler())
+    uvicorn_logger.propagate = False
+
+    setup_logging("INFO", "json")
+
+    assert uvicorn_logger.handlers == []
+    assert uvicorn_logger.propagate is True
+
+
+def test_json_formatter_drops_uvicorn_color_message() -> None:
+    data = json.loads(JsonFormatter().format(_record(color_message="\x1b[36mhi\x1b[0m")))
+
+    assert "color_message" not in data
