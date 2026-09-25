@@ -8,6 +8,30 @@ backend_port: 8000
 polling_interval_seconds: 10
 top_processes_count: 5
 
+# SQLite file, relative to backend/ unless absolute.
+database_path: data/monitor.db
+# How long historical samples are kept before being pruned.
+retention_days: 7
+# Default look-back window (minutes) for GET /api/metrics/history when ?minutes= is omitted.
+metrics_history_default_minutes: 60
+
+# Alert thresholds (percent). An open alert escalates warning -> critical on the same
+# row; it does not create a second one. CPU also needs a sustained breach (see below)
+# before its first alert; memory and disk alert on the very next collection cycle.
+cpu_warning_percent: 85.0
+cpu_critical_percent: 95.0
+cpu_sustained_seconds: 60
+
+memory_warning_percent: 90.0
+memory_critical_percent: 95.0
+
+disk_warning_percent: 80.0
+disk_critical_percent: 90.0
+
+# Look-back window (minutes) for *resolved* alerts in GET /api/alerts when ?minutes=
+# is omitted. Active alerts are always included regardless of age.
+alerts_history_default_minutes: 1440
+
 # Filesystem types the disk collector ignores (pseudo / virtual filesystems).
 # `*` wildcards are supported.
 # `9p` and `drvfs` are how WSL exposes Windows drives such as /mnt/c;

@@ -1,15 +1,19 @@
+from app.models.alerts import AlertRecord, AlertSeverity, AlertState
 from app.models.api import (
+    AlertsResponse,
     CurrentMetrics,
     ErrorBody,
     ErrorDetail,
     ErrorResponse,
     HealthResponse,
+    MetricHistoryResponse,
     ProcessesResponse,
 )
 from app.models.metrics import (
     CpuMetrics,
     DiskUsage,
     MemoryMetrics,
+    MetricHistoryPoint,
     MetricsSnapshot,
     NetworkInterface,
     NetworkMetrics,
@@ -20,20 +24,26 @@ from app.models.metrics import (
 )
 
 __all__ = [
+    "AlertRecord",
+    "AlertSeverity",
+    "AlertState",
+    "AlertsResponse",
     "CpuMetrics",
     "CurrentMetrics",
+    "DiskUsage",
     "ErrorBody",
     "ErrorDetail",
     "ErrorResponse",
     "HealthResponse",
-    "ProcessesResponse",
-    "DiskUsage",
     "MemoryMetrics",
+    "MetricHistoryPoint",
+    "MetricHistoryResponse",
     "MetricsSnapshot",
     "NetworkInterface",
     "NetworkMetrics",
     "ProcessInfo",
     "ProcessMetrics",
+    "ProcessesResponse",
     "RuntimeEnvironment",
     "SystemInfo",
 ]

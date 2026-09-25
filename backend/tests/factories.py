@@ -5,9 +5,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from app.models import (
+    AlertRecord,
+    AlertState,
     CpuMetrics,
     DiskUsage,
     MemoryMetrics,
+    MetricHistoryPoint,
     MetricsSnapshot,
     NetworkInterface,
     NetworkMetrics,
@@ -119,3 +122,80 @@ class FakeLiveMetrics:
         if self.error:
             raise self.error
         return self.snapshot.system
+
+
+def make_history_point(
+    collected_at: datetime, cpu_percent: float = 10.0, **overrides: object
+) -> MetricHistoryPoint:
+    data = {
+        "collected_at": collected_at,
+        "cpu_percent": cpu_percent,
+        "load_avg_1m": 0.5,
+        "ram_percent": 40.0,
+        "ram_used_bytes": 4_000,
+        "ram_total_bytes": 10_000,
+        "swap_percent": 0.0,
+        "bytes_sent_total": 100,
+        "bytes_recv_total": 200,
+        "send_rate_bytes_per_sec": 1.0,
+        "recv_rate_bytes_per_sec": 2.0,
+        "process_count": 80,
+    }
+    return MetricHistoryPoint(**{**data, **overrides})
+
+
+class FakeMetricsRepository:
+    """Stand-in for MetricsRepository: serves canned points, records what it was asked for."""
+
+    def __init__(
+        self, points: list[MetricHistoryPoint] | None = None, error: Exception | None = None
+    ):
+        self.points = points or []
+        self.error = error
+        self.history_calls: list[datetime] = []
+
+    def get_history(self, since: datetime) -> list[MetricHistoryPoint]:
+        self.history_calls.append(since)
+        if self.error:
+            raise self.error
+        return [p for p in self.points if p.collected_at >= since]
+
+
+def make_alert_record(
+    id: int,
+    rule_key: str = "memory",
+    target: str = "",
+    state: AlertState = AlertState.WARNING,
+    **overrides: object,
+) -> AlertRecord:
+    data = {
+        "id": id,
+        "rule_key": rule_key,
+        "target": target,
+        "state": state,
+        "value": 91.0,
+        "threshold": 90.0,
+        "message": "Memory utilization at 91.0% (>= 90% warning threshold)",
+        "first_triggered_at": NOW,
+        "last_updated_at": NOW,
+        "resolved_at": None,
+    }
+    return AlertRecord(**{**data, **overrides})
+
+
+class FakeAlertsRepository:
+    """Stand-in for AlertsRepository: serves canned active/resolved alerts."""
+
+    def __init__(
+        self, active: list[AlertRecord] | None = None, resolved: list[AlertRecord] | None = None
+    ):
+        self.active = active or []
+        self.resolved = resolved or []
+        self.resolved_since_calls: list[datetime] = []
+
+    def get_active_alerts(self) -> list[AlertRecord]:
+        return self.active
+
+    def get_resolved_alerts_since(self, since: datetime) -> list[AlertRecord]:
+        self.resolved_since_calls.append(since)
+        return [a for a in self.resolved if a.resolved_at is not None and a.resolved_at >= since]

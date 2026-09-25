@@ -7,7 +7,15 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.models.metrics import CpuMetrics, DiskUsage, MemoryMetrics, NetworkMetrics, ProcessMetrics
+from app.models.alerts import AlertRecord
+from app.models.metrics import (
+    CpuMetrics,
+    DiskUsage,
+    MemoryMetrics,
+    MetricHistoryPoint,
+    NetworkMetrics,
+    ProcessMetrics,
+)
 
 
 class CurrentMetrics(BaseModel):
@@ -22,6 +30,29 @@ class CurrentMetrics(BaseModel):
 
 class ProcessesResponse(ProcessMetrics):
     collected_at: datetime
+
+
+class MetricHistoryResponse(BaseModel):
+    """Historical samples, oldest first - ready to feed straight into a chart."""
+
+    since: datetime = Field(description="Start of the look-back window (inclusive), UTC.")
+    range_minutes: int = Field(
+        ge=1, description="Window actually applied; clamped to the retention period."
+    )
+    count: int = Field(ge=0)
+    points: list[MetricHistoryPoint]
+
+
+class AlertsResponse(BaseModel):
+    """Currently active alerts plus recently resolved ones, most recently updated first."""
+
+    active_count: int = Field(
+        ge=0, description="Currently open alerts (WARNING or CRITICAL), any age."
+    )
+    count: int = Field(
+        ge=0, description="active_count plus resolved alerts within the look-back window."
+    )
+    alerts: list[AlertRecord]
 
 
 class HealthResponse(BaseModel):

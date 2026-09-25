@@ -16,7 +16,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import (
     BaseSettings,
     NoDecode,
@@ -56,10 +56,45 @@ class Settings(BaseSettings):
     backend_host: str = "127.0.0.1"
     backend_port: int = Field(default=8000, ge=1, le=65535)
 
+    # Relative paths resolve against the backend/ directory (see get_database_path()).
+    database_path: str = "data/monitor.db"
+    retention_days: int = Field(default=7, ge=1, le=365, description="How long samples are kept.")
+    metrics_history_default_minutes: int = Field(
+        default=60,
+        ge=1,
+        description="Look-back window for /api/metrics/history when ?minutes= is omitted.",
+    )
+
     polling_interval_seconds: int = Field(default=10, ge=1, le=3600)
     top_processes_count: int = Field(default=5, ge=1, le=MAX_TOP_PROCESSES)
     disk_exclude_fstypes: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: list(DEFAULT_DISK_EXCLUDE_FSTYPES)
+    )
+
+    # Alert thresholds. Each metric has a warning and a critical percentage; an open
+    # alert escalates from warning to critical on the same row rather than creating a
+    # second one. CPU also requires a sustained breach before its first alert fires
+    # (memory and disk fire on the very next collection cycle).
+    cpu_warning_percent: float = Field(default=85.0, ge=0, le=100)
+    cpu_critical_percent: float = Field(default=95.0, ge=0, le=100)
+    cpu_sustained_seconds: int = Field(
+        default=60,
+        ge=0,
+        le=3600,
+        description="How long CPU must stay >= cpu_warning_percent before alerting.",
+    )
+
+    memory_warning_percent: float = Field(default=90.0, ge=0, le=100)
+    memory_critical_percent: float = Field(default=95.0, ge=0, le=100)
+
+    disk_warning_percent: float = Field(default=80.0, ge=0, le=100)
+    disk_critical_percent: float = Field(default=90.0, ge=0, le=100)
+
+    alerts_history_default_minutes: int = Field(
+        default=1440,
+        ge=1,
+        description="How far back /api/alerts looks for *resolved* alerts when ?minutes= is "
+        "omitted. Active alerts are always included regardless of age.",
     )
 
     @field_validator("log_level", mode="before")
@@ -75,6 +110,20 @@ class Settings(BaseSettings):
             return [item.strip().lower() for item in value.split(",") if item.strip()]
         return value
 
+    @model_validator(mode="after")
+    def _validate_alert_thresholds(self) -> Settings:
+        for name, warning, critical in (
+            ("cpu", self.cpu_warning_percent, self.cpu_critical_percent),
+            ("memory", self.memory_warning_percent, self.memory_critical_percent),
+            ("disk", self.disk_warning_percent, self.disk_critical_percent),
+        ):
+            if critical < warning:
+                raise ValueError(
+                    f"{name}_critical_percent ({critical}) must be "
+                    f">= {name}_warning_percent ({warning})"
+                )
+        return self
+
     @classmethod
     def settings_customise_sources(
         cls,
@@ -89,6 +138,17 @@ class Settings(BaseSettings):
             yaml_file=os.environ.get("MONITOR_CONFIG_FILE", DEFAULT_CONFIG_FILE),
         )
         return init_settings, env_settings, dotenv_settings, yaml_source
+
+
+def get_database_path(settings: Settings) -> Path:
+    """Resolve ``settings.database_path`` to an absolute path.
+
+    A relative path is resolved against the backend/ directory so the database
+    location does not depend on the current working directory the process was
+    started from.
+    """
+    path = Path(settings.database_path)
+    return path if path.is_absolute() else BACKEND_DIR / path
 
 
 @lru_cache

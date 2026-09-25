@@ -96,6 +96,23 @@ class ProcessMetrics(BaseModel):
     top_by_memory: list[ProcessInfo]
 
 
+class MetricHistoryPoint(BaseModel):
+    """One stored sample, as returned by GET /api/metrics/history."""
+
+    collected_at: datetime
+    cpu_percent: float = Field(ge=0, le=100)
+    load_avg_1m: float = Field(ge=0)
+    ram_percent: float = Field(ge=0, le=100)
+    ram_used_bytes: int = Field(ge=0)
+    ram_total_bytes: int = Field(ge=0)
+    swap_percent: float = Field(ge=0, le=100)
+    bytes_sent_total: int = Field(ge=0)
+    bytes_recv_total: int = Field(ge=0)
+    send_rate_bytes_per_sec: float | None = None
+    recv_rate_bytes_per_sec: float | None = None
+    process_count: int = Field(ge=0)
+
+
 class MetricsSnapshot(BaseModel):
     """Everything collected in one polling cycle."""
 
