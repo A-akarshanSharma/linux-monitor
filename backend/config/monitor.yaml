@@ -36,6 +36,12 @@ alerts_history_default_minutes: 1440
 # `*` wildcards are supported.
 # `9p` and `drvfs` are how WSL exposes Windows drives such as /mnt/c;
 # remove them if you want those reported too.
+# Linux service names as `systemctl` knows them (no ".service" suffix needed).
+monitored_services:
+  - nginx
+  - ssh
+  - docker
+
 disk_exclude_fstypes:
   - tmpfs
   - devtmpfs

@@ -83,3 +83,21 @@ class AlertRow(Base):
     resolved_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True
     )
+
+
+class ServiceStatusRow(Base):
+    """Current status of one monitored service - one row per service name, updated
+    in place on every check, not appended to. Unlike metrics and alerts this table
+    holds no history: "is nginx up right now" doesn't need a time series, and
+    ``last_changed_at`` already answers "how long has it been in this state".
+    """
+
+    __tablename__ = "service_status"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    state: Mapped[str] = mapped_column(String(16), nullable=False)
+    detail: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    last_checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

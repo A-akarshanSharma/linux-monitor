@@ -11,8 +11,16 @@ from datetime import datetime, timezone
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.database.orm import AlertRow, MetricSampleRow
-from app.models import AlertRecord, AlertSeverity, AlertState, MetricHistoryPoint, MetricsSnapshot
+from app.database.orm import AlertRow, MetricSampleRow, ServiceStatusRow
+from app.models import (
+    AlertRecord,
+    AlertSeverity,
+    AlertState,
+    MetricHistoryPoint,
+    MetricsSnapshot,
+    ServiceRecord,
+    ServiceState,
+)
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -239,3 +247,67 @@ class AlertsRepository:
             )
             session.commit()
             return result.rowcount or 0
+
+
+def _to_service_record(row: ServiceStatusRow) -> ServiceRecord:
+    return ServiceRecord(
+        name=row.name,
+        state=ServiceState(row.state),
+        detail=row.detail,
+        last_checked_at=_as_utc(row.last_checked_at),
+        last_changed_at=_as_utc(row.last_changed_at),
+    )
+
+
+@dataclass(frozen=True)
+class ServiceUpsertResult:
+    changed: bool
+    previous_state: ServiceState | None
+    new_state: ServiceState
+
+
+class ServicesRepository:
+    """One row per service name, always updated in place (see ``ServiceStatusRow``)."""
+
+    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+        self._session_factory = session_factory
+
+    def upsert_status(
+        self, *, name: str, state: ServiceState, detail: str | None, now: datetime
+    ) -> ServiceUpsertResult:
+        with self._session_factory() as session:
+            existing = session.execute(
+                select(ServiceStatusRow).where(ServiceStatusRow.name == name)
+            ).scalar_one_or_none()
+
+            if existing is None:
+                row = ServiceStatusRow(
+                    name=name,
+                    state=state.value,
+                    detail=detail,
+                    last_checked_at=now,
+                    last_changed_at=now,
+                )
+                session.add(row)
+                session.commit()
+                return ServiceUpsertResult(changed=True, previous_state=None, new_state=state)
+
+            previous_state = ServiceState(existing.state)
+            changed = previous_state != state
+            existing.state = state.value
+            existing.detail = detail
+            existing.last_checked_at = now
+            if changed:
+                existing.last_changed_at = now
+            session.commit()
+            return ServiceUpsertResult(
+                changed=changed, previous_state=previous_state, new_state=state
+            )
+
+    def get_all_statuses(self) -> list[ServiceRecord]:
+        """Every monitored service's current status, in the order rows were first
+        created - which is configuration order, for a freshly created database."""
+        stmt = select(ServiceStatusRow).order_by(ServiceStatusRow.id.asc())
+        with self._session_factory() as session:
+            rows = session.execute(stmt).scalars().all()
+            return [_to_service_record(row) for row in rows]

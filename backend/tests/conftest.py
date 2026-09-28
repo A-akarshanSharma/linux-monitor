@@ -60,6 +60,13 @@ def fake_alerts_repository():
 
 
 @pytest.fixture
+def fake_services_repository():
+    from tests.factories import FakeServicesRepository
+
+    return FakeServicesRepository()
+
+
+@pytest.fixture
 def make_client(settings: Settings):
     """Build a TestClient wired to fakes (no real psutil, no real DB, no lifespan).
 
@@ -71,10 +78,17 @@ def make_client(settings: Settings):
     """
     from fastapi.testclient import TestClient
 
-    from app.api.deps import get_alerts_repository, get_live_metrics, get_metrics_repository
+    from app.api.deps import (
+        get_alerts_repository,
+        get_live_metrics,
+        get_metrics_repository,
+        get_services_repository,
+    )
     from app.main import create_app
 
-    def _make(service=None, repository=None, alerts_repository=None) -> TestClient:
+    def _make(
+        service=None, repository=None, alerts_repository=None, services_repository=None
+    ) -> TestClient:
         app = create_app(settings)
         if service is not None:
             app.dependency_overrides[get_live_metrics] = lambda: service
@@ -82,11 +96,17 @@ def make_client(settings: Settings):
             app.dependency_overrides[get_metrics_repository] = lambda: repository
         if alerts_repository is not None:
             app.dependency_overrides[get_alerts_repository] = lambda: alerts_repository
+        if services_repository is not None:
+            app.dependency_overrides[get_services_repository] = lambda: services_repository
         return TestClient(app, raise_server_exceptions=False)
 
     return _make
 
 
 @pytest.fixture
-def client(make_client, fake_service, fake_repository, fake_alerts_repository):
-    return make_client(fake_service, fake_repository, fake_alerts_repository)
+def client(
+    make_client, fake_service, fake_repository, fake_alerts_repository, fake_services_repository
+):
+    return make_client(
+        fake_service, fake_repository, fake_alerts_repository, fake_services_repository
+    )

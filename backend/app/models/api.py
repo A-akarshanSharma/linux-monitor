@@ -16,6 +16,7 @@ from app.models.metrics import (
     NetworkMetrics,
     ProcessMetrics,
 )
+from app.models.services import ServiceRecord
 
 
 class CurrentMetrics(BaseModel):
@@ -53,6 +54,13 @@ class AlertsResponse(BaseModel):
         ge=0, description="active_count plus resolved alerts within the look-back window."
     )
     alerts: list[AlertRecord]
+
+
+class ServicesResponse(BaseModel):
+    """Current status of every configured service, in the order they were first
+    checked (which matches configuration order for a freshly created database)."""
+
+    services: list[ServiceRecord]
 
 
 class HealthResponse(BaseModel):

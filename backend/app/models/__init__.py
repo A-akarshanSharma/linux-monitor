@@ -8,6 +8,7 @@ from app.models.api import (
     HealthResponse,
     MetricHistoryResponse,
     ProcessesResponse,
+    ServicesResponse,
 )
 from app.models.metrics import (
     CpuMetrics,
@@ -22,6 +23,7 @@ from app.models.metrics import (
     RuntimeEnvironment,
     SystemInfo,
 )
+from app.models.services import ServiceRecord, ServiceState
 
 __all__ = [
     "AlertRecord",
@@ -45,5 +47,8 @@ __all__ = [
     "ProcessMetrics",
     "ProcessesResponse",
     "RuntimeEnvironment",
+    "ServiceRecord",
+    "ServiceState",
+    "ServicesResponse",
     "SystemInfo",
 ]
