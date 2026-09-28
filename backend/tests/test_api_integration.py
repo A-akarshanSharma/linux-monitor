@@ -18,6 +18,7 @@ def test_full_stack_on_this_machine(settings: Settings, caplog: pytest.LogCaptur
         health = client.get("/api/health")
         history = client.get("/api/metrics/history", params={"minutes": 5})
         alerts = client.get("/api/alerts")
+        services = client.get("/api/services")
 
     assert system.status_code == 200
     assert system.json()["hostname"]
@@ -44,6 +45,15 @@ def test_full_stack_on_this_machine(settings: Settings, caplog: pytest.LogCaptur
     # this only checks the response is well-formed, not that active_count == 0.
     assert alerts.status_code == 200
     assert isinstance(alerts.json()["active_count"], int)
+
+    # The default monitored services (nginx, ssh, docker) are checked synchronously
+    # during start(), so all three are already present by the time this request runs -
+    # whatever state systemctl reports them as on whatever machine runs this test.
+    assert services.status_code == 200
+    service_names = {s["name"] for s in services.json()["services"]}
+    assert service_names == {"nginx", "ssh", "docker"}
+    for service in services.json()["services"]:
+        assert service["state"] in {"RUNNING", "STOPPED", "UNKNOWN"}
 
     startup = [r for r in caplog.records if r.message == "application_startup"]
     assert len(startup) == 1
@@ -111,3 +121,58 @@ def test_alert_resolves_end_to_end_once_thresholds_are_no_longer_breached(tmp_pa
 
     body = response.json()
     assert [a for a in body["alerts"] if a["rule_key"] == "memory"] == []
+
+
+def test_services_report_real_systemctl_state_never_fabricated(tmp_path) -> None:
+    """This sandbox has the systemctl binary but no real systemd running as PID 1
+    (a containerized environment) - exactly the scenario the README's Docker
+    limitations section describes. The platform must report UNKNOWN, not guess."""
+    settings = Settings(
+        _env_file=None,
+        database_path=str(tmp_path / "services_e2e.db"),
+        monitored_services=["nginx", "ssh", "docker"],
+    )
+
+    with TestClient(create_app(settings)) as client:
+        response = client.get("/api/services")
+
+    body = response.json()
+    assert {s["name"] for s in body["services"]} == {"nginx", "ssh", "docker"}
+    for service in body["services"]:
+        assert service["state"] in {"RUNNING", "STOPPED", "UNKNOWN"}
+        assert service["detail"] is None or isinstance(service["detail"], str)
+
+
+def test_service_down_alert_end_to_end_with_a_fake_systemctl(tmp_path) -> None:
+    """Proves the full pipeline scheduler -> service_monitor -> ServicesRepository ->
+    AlertEngine -> AlertsRepository -> GET /api/alerts, using a fake `systemctl` on
+    PATH so the result doesn't depend on what's actually running on the test machine."""
+    fake_systemctl = tmp_path / "systemctl"
+    fake_systemctl.write_text("#!/bin/sh\necho inactive\nexit 3\n")
+    fake_systemctl.chmod(0o755)
+
+    import os
+
+    settings = Settings(
+        _env_file=None,
+        database_path=str(tmp_path / "service_alert_e2e.db"),
+        polling_interval_seconds=1,
+        monitored_services=["nginx"],
+    )
+    original_path = os.environ.get("PATH", "")
+    os.environ["PATH"] = f"{tmp_path}{os.pathsep}{original_path}"
+    try:
+        with TestClient(create_app(settings)) as client:
+            services = client.get("/api/services").json()
+            alerts = client.get("/api/alerts").json()
+    finally:
+        os.environ["PATH"] = original_path
+
+    assert services["services"][0]["name"] == "nginx"
+    assert services["services"][0]["state"] == "STOPPED"
+
+    service_alerts = [a for a in alerts["alerts"] if a["rule_key"] == "service"]
+    assert len(service_alerts) == 1
+    assert service_alerts[0]["target"] == "nginx"
+    assert service_alerts[0]["state"] == "CRITICAL"
+    assert "not running" in service_alerts[0]["message"]

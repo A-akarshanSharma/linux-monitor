@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import Depends, Request
 
 from app.config import Settings
-from app.database.repositories import AlertsRepository, MetricsRepository
+from app.database.repositories import AlertsRepository, MetricsRepository, ServicesRepository
 from app.services.live_metrics import LiveMetricsService
 
 
@@ -27,7 +27,12 @@ def get_alerts_repository(request: Request) -> AlertsRepository:
     return request.app.state.alerts_repository  # type: ignore[no-any-return]
 
 
+def get_services_repository(request: Request) -> ServicesRepository:
+    return request.app.state.services_repository  # type: ignore[no-any-return]
+
+
 SettingsDep = Annotated[Settings, Depends(get_app_settings)]
 LiveMetricsDep = Annotated[LiveMetricsService, Depends(get_live_metrics)]
 MetricsRepositoryDep = Annotated[MetricsRepository, Depends(get_metrics_repository)]
 AlertsRepositoryDep = Annotated[AlertsRepository, Depends(get_alerts_repository)]
+ServicesRepositoryDep = Annotated[ServicesRepository, Depends(get_services_repository)]

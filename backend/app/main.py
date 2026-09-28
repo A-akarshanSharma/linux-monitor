@@ -20,7 +20,7 @@ from app.api.routes import api_router
 from app.collectors.snapshot import SnapshotCollector
 from app.collectors.system_info import detect_runtime_environment
 from app.config import Settings, get_database_path, get_settings
-from app.database.repositories import AlertsRepository, MetricsRepository
+from app.database.repositories import AlertsRepository, MetricsRepository, ServicesRepository
 from app.database.session import create_session_factory
 from app.logging_config import setup_logging
 from app.services.live_metrics import LiveMetricsService
@@ -44,6 +44,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     session_factory = create_session_factory(db_path)
     repository = MetricsRepository(session_factory)
     alerts_repository = AlertsRepository(session_factory)
+    services_repository = ServicesRepository(session_factory)
     alert_engine = AlertEngine(alerts_repository, settings)
 
     collector = SnapshotCollector(settings)
@@ -53,12 +54,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings,
         alert_engine=alert_engine,
         alerts_repository=alerts_repository,
+        services_repository=services_repository,
+        monitored_service_names=settings.monitored_services,
     )
     scheduler.start()
 
     app.state.scheduler = scheduler
     app.state.metrics_repository = repository
     app.state.alerts_repository = alerts_repository
+    app.state.services_repository = services_repository
     app.state.live_metrics = LiveMetricsService(scheduler.get_latest)
 
     logger.info(
@@ -70,6 +74,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "polling_interval_seconds": settings.polling_interval_seconds,
             "database_path": str(db_path),
             "retention_days": settings.retention_days,
+            "monitored_services": settings.monitored_services,
         },
     )
     yield

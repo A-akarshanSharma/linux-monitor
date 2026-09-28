@@ -16,6 +16,8 @@ from app.models import (
     NetworkMetrics,
     ProcessInfo,
     ProcessMetrics,
+    ServiceRecord,
+    ServiceState,
     SystemInfo,
 )
 
@@ -199,3 +201,29 @@ class FakeAlertsRepository:
     def get_resolved_alerts_since(self, since: datetime) -> list[AlertRecord]:
         self.resolved_since_calls.append(since)
         return [a for a in self.resolved if a.resolved_at is not None and a.resolved_at >= since]
+
+
+def make_service_record(
+    name: str = "nginx",
+    state: ServiceState = ServiceState.RUNNING,
+    detail: str | None = "active",
+    **overrides: object,
+) -> ServiceRecord:
+    data = {
+        "name": name,
+        "state": state,
+        "detail": detail,
+        "last_checked_at": NOW,
+        "last_changed_at": NOW,
+    }
+    return ServiceRecord(**{**data, **overrides})
+
+
+class FakeServicesRepository:
+    """Stand-in for ServicesRepository: serves a canned list of current statuses."""
+
+    def __init__(self, statuses: list[ServiceRecord] | None = None):
+        self.statuses = statuses or []
+
+    def get_all_statuses(self) -> list[ServiceRecord]:
+        return self.statuses

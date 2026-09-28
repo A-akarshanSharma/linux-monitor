@@ -60,10 +60,12 @@ def make_scheduler(collector, repository, settings, **kwargs) -> MetricsSchedule
 class FakeAlertEngine:
     def __init__(self) -> None:
         self.evaluate_calls: list[object] = []
+        self.evaluate_service_states: list[dict] = []
         self.error: Exception | None = None
 
     def evaluate(self, snapshot, service_states=None) -> None:
         self.evaluate_calls.append(snapshot)
+        self.evaluate_service_states.append(service_states)
         if self.error:
             raise self.error
 
@@ -247,3 +249,204 @@ def test_stop_halts_the_background_thread_promptly(collector, repository, settin
     calls_at_stop = collector.collect_calls
     time.sleep(1.3)
     assert collector.collect_calls == calls_at_stop  # nothing collected after stop()
+
+
+# ---- service checking wiring ----
+
+
+class FakeServicesRepository:
+    def __init__(self) -> None:
+        self.upserts: list[dict] = []
+
+    def upsert_status(self, *, name, state, detail, now):
+        from app.database.repositories import ServiceUpsertResult
+
+        self.upserts.append({"name": name, "state": state, "detail": detail, "now": now})
+        return ServiceUpsertResult(changed=True, previous_state=None, new_state=state)
+
+
+def test_no_services_repository_configured_skips_service_checks(
+    collector, repository, settings
+) -> None:
+    alert_engine = FakeAlertEngine()
+    scheduler = make_scheduler(collector, repository, settings, alert_engine=alert_engine)
+
+    scheduler._collect_once()  # must not raise; no services_repository, no monitored names
+
+    assert alert_engine.evaluate_service_states == [{}]
+
+
+def test_no_monitored_service_names_skips_service_checks(collector, repository, settings) -> None:
+    services_repository = FakeServicesRepository()
+    scheduler = make_scheduler(
+        collector,
+        repository,
+        settings,
+        services_repository=services_repository,
+        monitored_service_names=[],
+    )
+
+    scheduler._collect_once()
+
+    assert services_repository.upserts == []
+
+
+def test_services_are_checked_even_without_an_alert_engine(collector, repository, settings) -> None:
+    """Regression test: /api/services must work whether or not alerting is
+    configured, so service checking must not be nested inside the alert-engine
+    branch."""
+    services_repository = FakeServicesRepository()
+    scheduler = make_scheduler(
+        collector,
+        repository,
+        settings,
+        alert_engine=None,
+        services_repository=services_repository,
+        monitored_service_names=["nginx"],
+    )
+
+    scheduler._collect_once()
+
+    assert len(services_repository.upserts) == 1
+    assert services_repository.upserts[0]["name"] == "nginx"
+
+
+def test_configured_services_are_checked_and_persisted(collector, repository, settings) -> None:
+    from app.models import ServiceState
+    from app.services.service_monitor import ServiceCheck
+
+    def fake_check_services(names, **kwargs):
+        now = datetime.now(timezone.utc)
+        return [ServiceCheck(name, ServiceState.RUNNING, "active", now) for name in names]
+
+    services_repository = FakeServicesRepository()
+    scheduler = make_scheduler(
+        collector,
+        repository,
+        settings,
+        services_repository=services_repository,
+        monitored_service_names=["nginx", "ssh"],
+    )
+
+    import app.services.scheduler as scheduler_module
+
+    original = scheduler_module.check_services
+    scheduler_module.check_services = fake_check_services
+    try:
+        scheduler._collect_once()
+    finally:
+        scheduler_module.check_services = original
+
+    assert {u["name"] for u in services_repository.upserts} == {"nginx", "ssh"}
+
+
+def test_alert_engine_receives_service_states_excluding_unknown(
+    collector, repository, settings
+) -> None:
+    from app.models import ServiceState
+    from app.services.service_monitor import ServiceCheck
+
+    def fake_check_services(names, **kwargs):
+        now = datetime.now(timezone.utc)
+        return [
+            ServiceCheck("nginx", ServiceState.RUNNING, "active", now),
+            ServiceCheck("ssh", ServiceState.STOPPED, "inactive", now),
+            ServiceCheck("docker", ServiceState.UNKNOWN, "no systemd", now),
+        ]
+
+    alert_engine = FakeAlertEngine()
+    services_repository = FakeServicesRepository()
+    scheduler = make_scheduler(
+        collector,
+        repository,
+        settings,
+        alert_engine=alert_engine,
+        services_repository=services_repository,
+        monitored_service_names=["nginx", "ssh", "docker"],
+    )
+
+    import app.services.scheduler as scheduler_module
+
+    original = scheduler_module.check_services
+    scheduler_module.check_services = fake_check_services
+    try:
+        scheduler._collect_once()
+    finally:
+        scheduler_module.check_services = original
+
+    passed_service_states = alert_engine.evaluate_service_states[-1]
+    assert passed_service_states == {"nginx": True, "ssh": False}  # docker (UNKNOWN) excluded
+
+
+def test_service_check_failure_does_not_break_metric_collection(
+    collector, repository, settings, caplog: pytest.LogCaptureFixture
+) -> None:
+    services_repository = FakeServicesRepository()
+    scheduler = make_scheduler(
+        collector,
+        repository,
+        settings,
+        services_repository=services_repository,
+        monitored_service_names=["nginx"],
+    )
+
+    import app.services.scheduler as scheduler_module
+
+    def broken_check_services(names, **kwargs):
+        raise RuntimeError("subprocess exploded")
+
+    original = scheduler_module.check_services
+    scheduler_module.check_services = broken_check_services
+    try:
+        with caplog.at_level(logging.ERROR):
+            scheduler._collect_once()  # must not raise
+    finally:
+        scheduler_module.check_services = original
+
+    assert scheduler.get_latest() is not None
+    assert any(r.message == "service_check_failed" for r in caplog.records)
+
+
+def test_service_persist_failure_for_one_service_does_not_block_others(
+    collector, repository, settings, caplog: pytest.LogCaptureFixture
+) -> None:
+    from app.models import ServiceState
+    from app.services.service_monitor import ServiceCheck
+
+    class PartiallyBrokenRepository:
+        def __init__(self) -> None:
+            self.succeeded: list[str] = []
+
+        def upsert_status(self, *, name, state, detail, now):
+            from app.database.repositories import ServiceUpsertResult
+
+            if name == "ssh":
+                raise RuntimeError("db locked")
+            self.succeeded.append(name)
+            return ServiceUpsertResult(changed=True, previous_state=None, new_state=state)
+
+    def fake_check_services(names, **kwargs):
+        now = datetime.now(timezone.utc)
+        return [ServiceCheck(name, ServiceState.RUNNING, "active", now) for name in names]
+
+    repo = PartiallyBrokenRepository()
+    scheduler = make_scheduler(
+        collector,
+        repository,
+        settings,
+        services_repository=repo,
+        monitored_service_names=["nginx", "ssh", "docker"],
+    )
+
+    import app.services.scheduler as scheduler_module
+
+    original = scheduler_module.check_services
+    scheduler_module.check_services = fake_check_services
+    try:
+        with caplog.at_level(logging.ERROR):
+            scheduler._collect_once()  # must not raise
+    finally:
+        scheduler_module.check_services = original
+
+    assert repo.succeeded == ["nginx", "docker"]
+    assert any(r.message == "service_status_persist_failed" for r in caplog.records)

@@ -71,6 +71,11 @@ class Settings(BaseSettings):
         default_factory=lambda: list(DEFAULT_DISK_EXCLUDE_FSTYPES)
     )
 
+    # Linux service names as `systemctl` knows them (no ".service" suffix needed).
+    monitored_services: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["nginx", "ssh", "docker"]
+    )
+
     # Alert thresholds. Each metric has a warning and a critical percentage; an open
     # alert escalates from warning to critical on the same row rather than creating a
     # second one. CPU also requires a sustained breach before its first alert fires
@@ -104,10 +109,19 @@ class Settings(BaseSettings):
 
     @field_validator("disk_exclude_fstypes", mode="before")
     @classmethod
-    def _split_csv(cls, value: object) -> object:
+    def _split_csv_lower(cls, value: object) -> object:
         """Accept ``"tmpfs, overlay"`` from env vars as well as real lists from YAML."""
         if isinstance(value, str):
             return [item.strip().lower() for item in value.split(",") if item.strip()]
+        return value
+
+    @field_validator("monitored_services", mode="before")
+    @classmethod
+    def _split_csv(cls, value: object) -> object:
+        """Same idea as disk_exclude_fstypes, but case is preserved: systemd unit
+        names are case-sensitive, unlike filesystem type names."""
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
         return value
 
     @model_validator(mode="after")
