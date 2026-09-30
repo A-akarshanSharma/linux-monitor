@@ -4,7 +4,7 @@ A small, production-style monitoring platform for Linux hosts: a Python agent co
 system metrics, a FastAPI backend stores and serves them, an alert engine tracks threshold
 breaches, and a React dashboard visualises everything.
 
-> **Status: Phase 5 of 9 - Linux service monitoring.** This README grows with each phase;
+> **Status: Phase 6 of 9 - React dashboard.** This README grows with each phase;
 > the final version (Phase 9) will include the architecture diagram, API reference,
 > screenshots and design decisions.
 
@@ -15,7 +15,7 @@ breaches, and a React dashboard visualises everything.
 | 3 | SQLite history, background scheduler, `/api/metrics/history` | done |
 | 4 | Alert engine: rules, states, dedup, `/api/alerts` | done |
 | 5 | Linux service monitoring, `/api/services`, service-down alerts | done |
-| 6 | React dashboard | |
+| 6 | React dashboard | done |
 | 7 | Docker / Compose | |
 | 8 | Full test suite + GitHub Actions | |
 | 9 | Docs, screenshots, cleanup | |
@@ -23,42 +23,24 @@ breaches, and a React dashboard visualises everything.
 ## What exists so far
 
 ```
-backend/
-├── app/
-│   ├── main.py              # FastAPI app factory + lifespan (starts/stops the scheduler)
-│   ├── __main__.py          # `python -m app` starts the server from configuration
-│   ├── config.py            # pydantic-settings: env > .env > YAML > defaults
-│   ├── logging_config.py    # structured JSON logging (stdlib only)
-│   ├── models/
-│   │   ├── metrics.py       # Pydantic schemas for collected metrics + MetricHistoryPoint
-│   │   ├── alerts.py        # AlertSeverity, AlertState, AlertRecord
-│   │   ├── services.py      # ServiceState, ServiceRecord
-│   │   └── api.py           # API-only schemas: CurrentMetrics, MetricHistoryResponse, AlertsResponse, ServicesResponse, ...
-│   ├── collectors/          # read-only system data: cpu, memory, disk, network, processes, ...
-│   │   └── __main__.py      # CLI: python -m app.collectors
-│   ├── alerts/
-│   │   ├── rules.py         # pure functions: snapshot (+ service states) -> RuleEvaluation
-│   │   └── engine.py        # evaluation -> create / escalate / resolve, with dedup + CPU's duration gate
-│   ├── database/
-│   │   ├── orm.py           # SQLAlchemy tables: metric_samples, alerts, service_status
-│   │   ├── session.py       # SQLite engine (WAL mode) + session factory
-│   │   └── repositories.py  # all queries live here (metrics + alerts + services CRUD, prune)
-│   ├── services/
-│   │   ├── scheduler.py     # background thread: collect -> persist -> check services -> evaluate alerts -> prune
-│   │   ├── service_monitor.py  # pure `systemctl is-active` checker; never fabricates a state
-│   │   └── live_metrics.py  # thin read-only facade the API depends on
-│   └── api/
-│       ├── deps.py          # dependency injection (overridable in tests)
-│       ├── errors.py        # one JSON error shape for every failure
-│       └── routes/          # system, metrics (current + history), processes, alerts, services, health
-├── config/monitor.yaml
-├── tests/                   # 233 tests: unit, database, scheduler (real threads), alert engine,
-│                             #   service monitor (mocked subprocess), API (fakes), six full
-│                             #   end-to-end runs against a real SQLite file, including one that
-│                             #   drives a fake `systemctl` on PATH through the whole pipeline to
-│                             #   a real service-down alert
-└── requirements*.txt, pyproject.toml
+backend/            # FastAPI + SQLite + alert engine + service monitor (Phases 1-5)
+frontend/            # React + Vite dashboard (this phase)
+├── src/
+│   ├── api/client.js       # fetch wrapper matching the backend's error envelope
+│   ├── config.js            # poll intervals, history window, process list size
+│   ├── hooks/                # usePolling (generic) + one hook per backend endpoint
+│   ├── utils/                # formatting, status-color mapping, alert cross-referencing
+│   └── components/
+│       ├── layout/           # Header, Panel (shared section shell), StatusDot
+│       ├── metrics/           # stat cards, disk usage, CPU/memory/network charts
+│       ├── processes/         # top-processes table (by CPU / by memory)
+│       ├── services/          # service health list
+│       └── alerts/            # active + recently resolved alerts feed
+├── vite.config.js     # dev/preview server proxies /api/* to the backend (no CORS needed)
+└── README.md           # frontend-specific run instructions and design notes
 ```
+
+See `frontend/README.md` for how to run it and the design reasoning behind the look.
 
 ## Setup (Ubuntu / WSL2)
 
@@ -129,6 +111,18 @@ Every error, including 404/405/422, has the same shape; server-side details are 
 | 422 | `validation_error` | Invalid query parameter |
 | 503 | `collection_failed` | A collector could not read system data; retry shortly |
 | 500 | `internal_error` | Unexpected server error (logged with stack trace as `api_error`) |
+
+### Start the dashboard
+
+```bash
+cd frontend
+npm install
+npm run dev            # http://localhost:5173
+```
+
+Requires the backend running first (`cd backend && python -m app`). The dev server
+proxies `/api/*` to the backend (see `frontend/vite.config.js`), so no CORS setup is
+needed and the browser only ever talks to one origin.
 
 ## Test and lint
 
@@ -250,6 +244,18 @@ know how to interpret the numbers.
 - **Service names are case-sensitive** (`MONITOR_MONITORED_SERVICES`), unlike the filesystem-type
   exclusion list: systemd unit names can be mixed case, so the config parser only trims whitespace
   and never lowercases them.
+- **The frontend polls; it doesn't push.** Each section fetches on a plain interval
+  (`frontend/src/config.js`), matching how the backend itself already works (a background
+  scheduler on a fixed interval, not push notifications) and how real tools like Grafana
+  poll their datasources by default. Simpler to reason about and explain than SSE/WebSockets,
+  with no new transport layer for a backend that's already stable.
+- **The frontend never recomputes alert thresholds.** Stat cards and the disk/service lists
+  color themselves by cross-referencing the live `/api/alerts` response
+  (`frontend/src/utils/alerts.js`), not by re-implementing the Phase 4 threshold logic in
+  JavaScript - one source of truth for "what's wrong".
+- **A panel never blanks out on a failed poll**; the last successful reading stays on
+  screen with a small inline notice, since a transient 503 during backend startup
+  shouldn't flash the whole dashboard to an error state.
 - **Service checking runs every cycle independent of the alert engine** - `/api/services` needs
   current data even if alerting were ever disabled. (This was a real bug caught during Phase 5
   testing: an early version only checked services inside the `if alert_engine is not None` branch,

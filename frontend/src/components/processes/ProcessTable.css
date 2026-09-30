@@ -1,0 +1,75 @@
+.process-tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.process-tab {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.process-tab:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.process-tab--active {
+  color: var(--bg-base);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.process-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.process-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  font-size: var(--text-2xs);
+  padding: 0 var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.process-table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.process-table tr:last-child td {
+  border-bottom: none;
+}
+
+.process-table-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.process-table-name {
+  min-width: 0;
+  max-width: 1px; /* forces the flexible column to actually shrink instead of stretching the table */
+  width: 100%;
+}
+
+.process-table-name-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.process-table-user {
+  display: block;
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+}

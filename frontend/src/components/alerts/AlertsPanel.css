@@ -1,0 +1,67 @@
+.alerts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.alert-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.alert-row .status-dot {
+  margin-top: 6px;
+}
+
+.alert-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.alert-row-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.alert-row-target {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.alert-row-state {
+  font-size: var(--text-2xs);
+  text-transform: lowercase;
+}
+
+.alert-row-state[data-status='warning'] {
+  color: var(--status-warning);
+}
+.alert-row-state[data-status='critical'] {
+  color: var(--status-critical);
+}
+.alert-row-state[data-status='ok'] {
+  color: var(--status-ok);
+}
+
+.alert-row-message {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.alert-row-time {
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.alerts-empty {
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}

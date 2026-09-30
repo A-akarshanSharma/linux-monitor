@@ -1,0 +1,142 @@
+/*
+  Design tokens.
+
+  Palette is grounded in how Linux admins already read status, not picked for
+  looks: ok/warn/critical map to the same green/amber/red systemctl and journald
+  print in a terminal; unknown is the neutral grey the backend uses when it
+  genuinely cannot determine a service's state (see the Phase 5 README notes -
+  UNKNOWN is a real, honest value here, never treated as "down").
+
+  Two-family type system: IBM Plex Sans for interface text, IBM Plex Mono
+  reserved specifically for numeric telemetry (percentages, byte values, PIDs,
+  timestamps) where fixed-width digits genuinely aid scanning a column of
+  numbers - not used as a generic "data label" decoration.
+*/
+
+:root {
+  /* Surfaces - three tone steps instead of shadows, like a terminal panel. */
+  --bg-base: #0b0e11;
+  --bg-panel: #12161b;
+  --bg-panel-raised: #171c22;
+  --border: #262c33;
+  --border-strong: #333b44;
+
+  /* Text */
+  --text-primary: #e6eaee;
+  --text-secondary: #8b97a3;
+  --text-tertiary: #5e6871;
+
+  /* Accent - reserved for "live" indicators and chart primary series only. */
+  --accent: #4fd1c5;
+  --accent-dim: #2f6e68;
+
+  /* Status - the actual vocabulary of the dashboard. */
+  --status-ok: #3fb950;
+  --status-ok-bg: rgba(63, 185, 80, 0.12);
+  --status-warning: #d29922;
+  --status-warning-bg: rgba(210, 153, 34, 0.14);
+  --status-critical: #f85149;
+  --status-critical-bg: rgba(248, 81, 73, 0.14);
+  --status-unknown: #6e7681;
+  --status-unknown-bg: rgba(110, 118, 129, 0.14);
+
+  /* Type */
+  --font-sans:
+    'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+
+  --text-2xs: 0.6875rem; /* 11px */
+  --text-xs: 0.75rem; /* 12px */
+  --text-sm: 0.8125rem; /* 13px */
+  --text-base: 0.9375rem; /* 15px */
+  --text-lg: 1.125rem; /* 18px */
+  --text-xl: 1.5rem; /* 24px */
+  --text-2xl: 2.25rem; /* 36px */
+
+  /* Layout */
+  --radius: 4px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --content-max-width: 1440px;
+}
+
+@media (prefers-color-scheme: light) {
+  /* The dashboard is designed dark-first (the near-universal convention for
+     monitoring tools, and genuinely easier to scan at a glance), but a viewer
+     with a light OS preference still gets working contrast rather than a
+     jarring pure-dark override. */
+  :root {
+    --bg-base: #f4f5f6;
+    --bg-panel: #ffffff;
+    --bg-panel-raised: #ffffff;
+    --border: #dde1e5;
+    --border-strong: #c7cdd3;
+    --text-primary: #1c2128;
+    --text-secondary: #57606a;
+    --text-tertiary: #6e7681;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100%;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* Numeric telemetry: every place a raw metric value is displayed gets this
+   class so digits line up in a column, matching how `htop`/`top` read. */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: var(--accent-dim);
+  color: var(--text-primary);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

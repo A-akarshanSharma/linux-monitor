@@ -1,0 +1,50 @@
+.service-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.service-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.service-name {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.service-state {
+  font-size: var(--text-xs);
+  text-transform: lowercase;
+}
+
+.service-state[data-status='ok'] {
+  color: var(--status-ok);
+}
+.service-state[data-status='critical'] {
+  color: var(--status-critical);
+}
+.service-state[data-status='unknown'] {
+  color: var(--status-unknown);
+}
+
+.service-since {
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.service-empty {
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}

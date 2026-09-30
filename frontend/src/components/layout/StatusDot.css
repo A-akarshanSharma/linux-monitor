@@ -1,0 +1,35 @@
+.status-dot-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dot-color);
+  flex-shrink: 0;
+}
+
+.status-dot--pulse {
+  box-shadow: 0 0 0 0 var(--dot-color);
+  animation: status-dot-pulse 2s ease-out infinite;
+}
+
+.status-dot-label {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+@keyframes status-dot-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--dot-color) 55%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--dot-color) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--dot-color) 0%, transparent);
+  }
+}
