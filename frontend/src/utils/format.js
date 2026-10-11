@@ -2,6 +2,12 @@
 // date/number-formatting library) since the formats needed are all simple.
 
 const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+// Chart axes format many timestamps per update. Reuse the locale formatters
+// instead of repeatedly allocating their native ICU data via toLocale*String.
+const CLOCK_FORMAT = new Intl.DateTimeFormat([], {
+  hour: '2-digit', minute: '2-digit', second: '2-digit',
+})
+const DATE_FORMAT = new Intl.DateTimeFormat([], { month: 'short', day: 'numeric' })
 
 /** 1536 -> "1.5 KB". Binary (1024-based), matching `df`/`free` convention on Linux. */
 export function formatBytes(bytes, { decimals = 1 } = {}) {
@@ -58,16 +64,12 @@ export function formatRelativeTime(isoString, now = Date.now()) {
 /** ISO timestamp -> "14:32:05" for chart axes and tooltips. */
 export function formatClockTime(isoString) {
   if (!isoString) return '—'
-  return new Date(isoString).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
+  return CLOCK_FORMAT.format(new Date(isoString))
 }
 
 /** ISO timestamp -> "Jan 15, 14:32:05" for places that need the full moment. */
 export function formatDateTime(isoString) {
   if (!isoString) return '—'
   const date = new Date(isoString)
-  return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${formatClockTime(isoString)}`
+  return `${DATE_FORMAT.format(date)}, ${formatClockTime(isoString)}`
 }

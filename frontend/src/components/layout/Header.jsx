@@ -2,6 +2,7 @@ import { useHealth } from '../../hooks/useHealth'
 import { useSystemInfo } from '../../hooks/useSystemInfo'
 import { formatUptime } from '../../utils/format'
 import { StatusDot } from './StatusDot'
+import { InstallApp } from './InstallApp'
 import './Header.css'
 
 const ENV_LABELS = {
@@ -37,13 +38,21 @@ export function Header() {
       </div>
 
       <div className="app-header-meta">
+        <span
+          className="app-header-version"
+          title={`Dashboard ${__APP_VERSION__} · backend ${health?.version ?? 'connecting'}`}
+        >
+          v{__APP_VERSION__}
+          {health?.version && health.version !== __APP_VERSION__ ? ' · update pending' : ''}
+        </span>
+        <InstallApp />
         {system ? (
           <div className="app-header-stat">
             <span className="app-header-stat-label">uptime</span>
             <span className="app-header-stat-value num">{formatUptime(system.uptime_seconds)}</span>
           </div>
         ) : null}
-        <StatusDot status={connected ? 'ok' : 'critical'} pulse={connected} label={connected ? 'connected' : 'unreachable'} />
+        <StatusDot status={connected ? 'ok' : 'critical'} label={connected ? 'connected' : 'unreachable'} />
       </div>
     </header>
   )

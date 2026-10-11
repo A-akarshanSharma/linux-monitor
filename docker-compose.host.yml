@@ -1,0 +1,32 @@
+# Optional overlay: closer-to-host system metrics, for a backend container running
+# directly on a native Linux Docker host.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.host.yml up --build
+#
+# NOT meaningful on Docker Desktop (Mac/Windows, including WSL2): there, "the host"
+# Docker can see is still its own Linux VM, not your actual machine. On Docker
+# Desktop, run the backend directly via scripts/run_host.sh instead if you want
+# real metrics.
+#
+# What this fixes, and what it deliberately doesn't (see the README for the full
+# explanation):
+#   - CPU / memory / disk / network aggregate numbers: fixed - read from the host's
+#     /proc, mounted read-only (see MONITOR_HOST_PROC_PATH in app/collectors/procfs.py).
+#   - Top-processes list and count: fixed - `pid: host` shares the host's process
+#     namespace, so the host's /proc/<pid> entries correspond to real processes.
+#   - Hostname / OS info shown by /api/system: NOT fixed - still the container's own.
+#   - Service monitoring (systemctl): NOT fixed. There's no systemd or D-Bus socket
+#     here by design - mounting them in is possible but a real security tradeoff (the
+#     container could then control host services), not one this project makes by
+#     default. Use scripts/run_host.sh for working service monitoring instead.
+#
+# Sanity-check the merged config before relying on it:
+#   docker compose -f docker-compose.yml -f docker-compose.host.yml config
+
+services:
+  backend:
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+    environment:
+      MONITOR_HOST_PROC_PATH: /host/proc

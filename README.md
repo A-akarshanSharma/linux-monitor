@@ -1,264 +1,267 @@
-# Linux Server Monitoring & Alerting Platform
+# Linux Server Monitor
 
-A small, production-style monitoring platform for Linux hosts: a Python agent collects
-system metrics, a FastAPI backend stores and serves them, an alert engine tracks threshold
-breaches, and a React dashboard visualises everything.
+Linux Server Monitor **0.6.0** is a lightweight, read-only dashboard for one Linux host. A small Python service samples host metrics, stores short-term history in SQLite, checks selected systemd services, evaluates threshold alerts, and serves a local API. Choose a native Ubuntu desktop window, a browser dashboard/PWA, Docker, or the API on its own.
 
-> **Status: Phase 6 of 9 - React dashboard.** This README grows with each phase;
-> the final version (Phase 9) will include the architecture diagram, API reference,
-> screenshots and design decisions.
+## Screenshots
 
-| Phase | Scope | Status |
-|------:|-------|:------:|
-| 1 | Metrics collector, config, logging, tests | done |
-| 2 | FastAPI API (live endpoints), error handling, tests | done |
-| 3 | SQLite history, background scheduler, `/api/metrics/history` | done |
-| 4 | Alert engine: rules, states, dedup, `/api/alerts` | done |
-| 5 | Linux service monitoring, `/api/services`, service-down alerts | done |
-| 6 | React dashboard | done |
-| 7 | Docker / Compose | |
-| 8 | Full test suite + GitHub Actions | |
-| 9 | Docs, screenshots, cleanup | |
+### Dashboard
 
-## What exists so far
+![Linux Server Monitor dashboard showing live metrics, history charts, processes, services, and alerts](docs/images/linux-monitor-dashboard.png)
 
-```
-backend/            # FastAPI + SQLite + alert engine + service monitor (Phases 1-5)
-frontend/            # React + Vite dashboard (this phase)
-├── src/
-│   ├── api/client.js       # fetch wrapper matching the backend's error envelope
-│   ├── config.js            # poll intervals, history window, process list size
-│   ├── hooks/                # usePolling (generic) + one hook per backend endpoint
-│   ├── utils/                # formatting, status-color mapping, alert cross-referencing
-│   └── components/
-│       ├── layout/           # Header, Panel (shared section shell), StatusDot
-│       ├── metrics/           # stat cards, disk usage, CPU/memory/network charts
-│       ├── processes/         # top-processes table (by CPU / by memory)
-│       ├── services/          # service health list
-│       └── alerts/            # active + recently resolved alerts feed
-├── vite.config.js     # dev/preview server proxies /api/* to the backend (no CORS needed)
-└── README.md           # frontend-specific run instructions and design notes
-```
+### Resource Usage Comparison
 
-See `frontend/README.md` for how to run it and the design reasoning behind the look.
+![Ubuntu Resources and Linux Server Monitor side by side, showing the monitor process using about 45.6 MB](docs/images/linux-monitor-resource-comparison.png)
 
-## Setup (Ubuntu / WSL2)
+### Native Desktop Window
+
+![Linux Server Monitor running in its native Ubuntu desktop window](docs/images/linux-monitor-native-window.png)
+
+### Alerts
+
+![Linux Server Monitor alert panel showing active system alerts](docs/images/linux-monitor-alerts.png)
+
+### API Documentation
+
+![Interactive FastAPI documentation for the Linux Server Monitor API](docs/images/linux-monitor-api-docs.png)
+
+## Download
+
+Download the Ubuntu package from the [latest stable release page](https://github.com/A-akarshanSharma/linux-monitor/releases/latest). Check that page for v0.6.0 availability; no release status is assumed here. The documented package targets are Ubuntu 24.04 amd64 and Ubuntu 26.04 amd64; use the package built for your Ubuntu release. See the release notes and [installation guide](packaging/README.md) for setup, compatibility, and verification details.
+
+After downloading the matching v0.6.0 asset, install it from its download folder:
 
 ```bash
-# Keep the repo inside the Linux filesystem (~/), not under /mnt/c
-cd linux-monitor/backend
+# Ubuntu 24.04 amd64
+sudo apt install ./linux-monitor_0.6.0-1+ubuntu24.04_amd64.deb
+
+# Ubuntu 26.04 amd64
+sudo apt install ./linux-monitor_0.6.0-1+ubuntu26.04_amd64.deb
+```
+
+The packaged native window is designed to avoid the extra memory cost of running a browser just to view metrics. In the Ubuntu 26.04 VirtualBox screenshots shared with this project, the monitor process used **45.6 MB** and showed **0.0–0.2% CPU** in Ubuntu Resources. A separate local native-window measurement recorded **40.6 MiB RSS** and **0.1% of one CPU core** during a 60-second idle observation. These are observations, not guarantees: VM graphics, desktop services, host load, screen size, and sampling activity change the result. The GUI number excludes the background monitoring service.
+
+## What it does
+
+- Samples CPU, memory, swap, disk usage, network rates, and top processes.
+- Records readings in a local SQLite database and shows a rolling 30-minute chart.
+- Checks configured systemd services and creates alerts for sustained CPU, memory, disk, or monitored-service issues.
+- Serves a documented, read-only REST API and an interactive API page at `/docs`.
+- Provides a native Python/Tk window, a React dashboard that can be installed as a PWA, and Ubuntu `.deb` packages.
+- Keeps collection running when the desktop window is closed, as long as its service and Linux system are running.
+
+## Resource comparison
+
+In the point-in-time Ubuntu Resources view, the monitor's own row showed about 45.6 MB and 0.0–0.2% CPU. Ubuntu Resources reports its own process separately and can itself use substantially more memory. This is a useful real-system example, but not a controlled benchmark: the VM's totals include Ubuntu, Firefox, the display server, and other programs. The dashboard's CPU card reports the **monitored host's CPU**, not CPU used by the monitor application. Compare the monitor process row in Ubuntu Resources to assess the app itself.
+
+| Comparison | What is being measured | Observed result | How to interpret it |
+| --- | --- | ---: | --- |
+| Native window in the shared Ubuntu VM | Monitor's `python3` process | 45.6 MB; 0.0–0.2% CPU | Your screenshot; point-in-time process reading. |
+| Native window, local 60-second check | GUI process RSS and CPU | 40.6 MiB RSS; 0.1% of one core | Controlled local idle observation, not the backend or the whole VM. |
+| Background API service, separate local check | Backend process RSS and CPU | 85.2 MiB RSS; 0.7% of one core | Measured separately; do not add this to the GUI result as if both were benchmarked together. |
+| Browser dashboard, local production-browser check | Browser process tree, including browser runtime | Chrome 390.4 MiB PSS / 2.5% CPU; Firefox 417.1 MiB PSS / 3.5% CPU | A separate 60-second browser test; see [browser measurement details](frontend/README.md#local-measurements-051-2026-10-07). |
+
+The browser figures include a browser runtime and use **PSS** (shared pages counted proportionally); the native figure uses **RSS** for one process. These methods are not directly interchangeable. Browser dashboards still make sense when a richer UI, a remote browser, or a PWA matters more than minimizing desktop overhead. The native window avoids launching that browser, but has a simpler desktop UI and still depends on the backend service for readings.
+
+## How it works
+
+```mermaid
+flowchart LR
+    H[Linux host] --> C[Collector<br/>every 10 seconds]
+    C --> M[Latest snapshot]
+    C --> D[(SQLite history and alerts)]
+    M --> A[Local FastAPI]
+    D --> A
+    A --> N[Native window<br/>refresh every 10 seconds]
+    A --> W[React dashboard / PWA<br/>poll every 10–15 seconds]
+```
+
+## Collection and refresh timing
+
+The default collection interval is **10 seconds** (`MONITOR_POLLING_INTERVAL_SECONDS`). The backend takes an initial reading at startup, then wakes its collector every 10 seconds. Each successful sample updates the live snapshot, writes history, checks configured services, and evaluates alerts. The native window requests the dashboard data every **10 seconds**. The browser dashboard polls current metrics, processes, and alerts every **10 seconds**, and the mostly static system, history, and service endpoints every **15 seconds**. Its “updated” age label ticks once a second; that label is not another metrics collection.
+
+This interval keeps idle work low because the collector sleeps between samples. CPU is not guaranteed to remain at zero: sampling process and disk data costs work, busy hosts add load, and a collection can show a brief CPU or I/O pulse. A 10-second interval also means a new reading or alert can take roughly one interval to appear; shorter intervals improve freshness but increase sampling, database, and API work. Browser requests pause while its page is hidden; backend collection continues while either UI is closed. The 30-minute graphs therefore contain roughly 180 samples at the default interval. History is retained for 7 days by default.
+
+## Install the Ubuntu desktop app
+
+Install the `.deb` built for your Ubuntu release and CPU architecture. Current package targets are Ubuntu **24.04 amd64** and Ubuntu **26.04 amd64**. Do not rename a package built for one Ubuntu/Python version to imply compatibility with another.
+
+```bash
+sudo apt install ./linux-monitor_<version>_<architecture>.deb
+```
+
+Launch **Linux Server Monitor** from the applications menu or run:
+
+```bash
+linux-monitor
+```
+
+APT installs the required system packages, including Python/Tk. The application package contains the backend, Python production dependencies, built web dashboard, native launcher, and systemd service; an end user does not need Node, npm, pip, Docker, or a source checkout. The service runs as a dedicated `linux-monitor` user, listens on localhost port **8765**, and stores its database at `/var/lib/linux-monitor/monitor.db`.
+
+Useful commands:
+
+```bash
+systemctl status linux-monitor
+linux-monitor --native
+linux-monitor --browser
+linux-monitor --url
+```
+
+The native window uses the backend service and refreshes every 10 seconds. Closing it leaves collection running. `--browser` opens the bundled dashboard in a browser; the dashboard can be installed as a PWA through a supported browser. On WSL, the native window needs WSLg/X11 (`DISPLAY`); without a Linux display the launcher opens the Windows browser. WSL must remain running for live data, and the readings describe WSL/Linux, not the Windows host.
+
+See [package documentation](packaging/README.md) for updating, removal, configuration, WSL shortcuts, package builds, and verification. Package history is deliberately retained when the package is removed; `apt purge` also retains it. Remove the database separately only if you intend to erase saved history.
+
+## Quick start with Docker
+
+```bash
+cp .env.example .env   # optional: adjust collection and alert settings
+docker compose up --build
+```
+
+Open the dashboard at <http://localhost:8080> and the API docs at <http://localhost:8000/docs>. The default Compose setup reports **container-scoped** metrics and service status is `UNKNOWN` because the containers do not run systemd. This is convenient for trying the app, but it is not a full host monitor.
+
+Compose binds both published ports to host loopback; other machines cannot reach them by default. Inside Compose, the backend explicitly listens on the container interface so the frontend proxy can reach it even when the copied `.env` sets the host-only bind used for a direct host run.
+
+On native Linux, `docker-compose.host.yml` can expose host `/proc` data for closer host CPU, memory, and process readings:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.host.yml up --build
+```
+
+The overlay still does not provide host disk/network views or systemd service monitoring. For the most accurate host monitoring, run the service directly on the host or install the `.deb`. On macOS, Windows Docker Desktop, and WSL-hosted Docker, Linux bind mounts do not turn the container into a full view of the physical host. `docker compose down -v` deletes the stored database volume.
+
+## Run from source
+
+Requirements: Linux, Python **3.10+**, and Node.js **22.12+** for the web dashboard. Keep the checkout in the Linux filesystem when using WSL (for example, under `~/projects` rather than `/mnt/c`).
+
+Start the backend in one terminal:
+
+```bash
+cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-dev.txt
+python -m app
 ```
 
-Requires Python 3.10+ (developed and tested on 3.12; Ubuntu 24.04 ships it).
-
-## Run
-
-```bash
-cd backend
-
-python -m app.collectors                 # one full snapshot as pretty JSON
-python -m app.collectors --compact       # single-line JSON (pipe to jq)
-python -m app.collectors --watch         # a snapshot every polling interval, Ctrl+C to stop
-python -m app.collectors --help
-```
-
-JSON goes to **stdout**; structured logs go to **stderr**, so
-`python -m app.collectors | jq .cpu` works.
-
-### Start the API
-
-```bash
-cd backend
-python -m app                      # host/port from configuration (default 127.0.0.1:8000)
-# equivalent: uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000
-```
-
-Open <http://localhost:8000/docs> for the interactive Swagger UI. On WSL2 this also works from a
-Windows browser through WSL's localhost forwarding.
-
-```bash
-curl -s localhost:8000/api/health
-curl -s localhost:8000/api/metrics/current | jq .cpu
-curl -s "localhost:8000/api/processes?limit=3" | jq '.top_by_cpu[].name'
-```
-
-## API
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/system` | Hostname, IP, OS, kernel, uptime, runtime environment (host / wsl / container) |
-| GET | `/api/metrics/current` | CPU, memory, disks, network (with bytes/sec rates); at most 1 s old |
-| GET | `/api/metrics/history?minutes=N` | Stored samples over the last N minutes, oldest first. `minutes` defaults to `metrics_history_default_minutes` and is clamped to the retention window - never a 422 for asking too far back |
-| GET | `/api/processes?limit=N` | Process counts + top N by CPU and by memory (`1 <= N <= 50`, default from config) |
-| GET | `/api/alerts?minutes=N` | Every currently active alert (any age) plus alerts resolved in the last N minutes, most recently updated first |
-| GET | `/api/services` | Current status (RUNNING / STOPPED / UNKNOWN) of every service in `MONITOR_MONITORED_SERVICES`, via `systemctl is-active` |
-| GET | `/api/health` | Liveness probe: status, version, API uptime |
-
-All endpoints listed in the original project scope now exist.
-
-Every error, including 404/405/422, has the same shape; server-side details are never leaked:
-
-```json
-{"error": {"code": "validation_error", "message": "Request validation failed.",
-           "details": [{"field": "query.limit", "message": "Input should be less than or equal to 50"}]}}
-```
-
-| Status | `code` | Meaning |
-|-------:|--------|---------|
-| 422 | `validation_error` | Invalid query parameter |
-| 503 | `collection_failed` | A collector could not read system data; retry shortly |
-| 500 | `internal_error` | Unexpected server error (logged with stack trace as `api_error`) |
-
-### Start the dashboard
+Start the dashboard in another terminal:
 
 ```bash
 cd frontend
-npm install
-npm run dev            # http://localhost:5173
+npm ci
+npm run dev
 ```
 
-Requires the backend running first (`cd backend && python -m app`). The dev server
-proxies `/api/*` to the backend (see `frontend/vite.config.js`), so no CORS setup is
-needed and the browser only ever talks to one origin.
+Open <http://localhost:5173>. The development server proxies `/api` calls to the backend at `127.0.0.1:8000`. The backend's interactive API documentation is at <http://localhost:8000/docs>. For a quick collector-only snapshot, run `python -m app.collectors` from `backend/`; add `--watch` to sample repeatedly at the configured interval.
 
-## Test and lint
+### Run the API on the host with systemd
+
+The host scripts are useful for development and systems where a `.deb` is not available:
 
 ```bash
-cd backend
-pytest
-ruff check .
-ruff format --check .
+scripts/run_host.sh
+# In another terminal, install and start the service:
+scripts/install_systemd_unit.sh
+sudo systemctl enable --now linux-monitor-backend
 ```
+
+The systemd installer expects `scripts/run_host.sh` to have initialized the backend virtual environment first. For the packaged desktop build, prefer the package's separate `linux-monitor` service and launcher.
+
+## API reference
+
+All endpoints are read-only. Data describes the Linux environment visible to the backend process.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | `/api/health` | Liveness, version, and API uptime. |
+| GET | `/api/system` | Hostname, OS, kernel, address, uptime, and detected runtime environment. |
+| GET | `/api/metrics/current` | Latest CPU, memory, swap, disk, and network snapshot. |
+| GET | `/api/metrics/history?minutes=30` | Stored metric samples, oldest first; default window is 60 minutes. |
+| GET | `/api/processes?limit=8` | Process count and top processes by CPU and memory; limit is 1–50, API default is 5. |
+| GET | `/api/services` | Current configured service states: `RUNNING`, `STOPPED`, or `UNKNOWN`. |
+| GET | `/api/alerts?minutes=1440` | All active alerts and recently resolved alerts. |
+| GET | `/docs` | Interactive Swagger UI; `/openapi.json` is the schema. |
+
+Errors use a consistent JSON envelope, including validation errors:
+
+```json
+{"error":{"code":"validation_error","message":"Request validation failed.","details":[{"field":"query.limit","message":"Input should be less than or equal to 50"}]}}
+```
+
+`/api/health` is a liveness endpoint; it does not promise that every collector or host integration is healthy. Check the returned readings and service states as well.
 
 ## Configuration
 
-Precedence, highest first: environment variables > `.env` > `backend/config/monitor.yaml` > defaults.
-Copy `.env.example` to `.env` to override values. All variables use the `MONITOR_` prefix.
+Configuration precedence is: explicit settings, `MONITOR_*` environment variables, `.env`, `backend/config/monitor.yaml`, then defaults. Copy `.env.example` to `.env` to customize a local checkout; `.env` is ignored by Git. The package instead reads `/etc/linux-monitor/monitor.env`.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MONITOR_BACKEND_HOST` | `127.0.0.1` | API bind address (`0.0.0.0` for all interfaces) |
-| `MONITOR_BACKEND_PORT` | `8000` | API port |
-| `MONITOR_DATABASE_PATH` | `data/monitor.db` | SQLite file; relative paths resolve against `backend/` |
-| `MONITOR_RETENTION_DAYS` | `7` | How long samples are kept before being pruned |
-| `MONITOR_METRICS_HISTORY_DEFAULT_MINUTES` | `60` | Look-back window when `/api/metrics/history` is called without `?minutes=` |
-| `MONITOR_CPU_WARNING_PERCENT` / `MONITOR_CPU_CRITICAL_PERCENT` | `85` / `95` | CPU alert thresholds (%) |
-| `MONITOR_CPU_SUSTAINED_SECONDS` | `60` | How long CPU must stay >= the warning threshold before the first alert fires |
-| `MONITOR_MEMORY_WARNING_PERCENT` / `MONITOR_MEMORY_CRITICAL_PERCENT` | `90` / `95` | Memory alert thresholds (%) |
-| `MONITOR_DISK_WARNING_PERCENT` / `MONITOR_DISK_CRITICAL_PERCENT` | `80` / `90` | Disk alert thresholds (%), per mount point |
-| `MONITOR_MONITORED_SERVICES` | `nginx,ssh,docker` | Linux service names (as `systemctl` knows them) to check every cycle |
-| `MONITOR_ALERTS_HISTORY_DEFAULT_MINUTES` | `1440` | Look-back window for *resolved* alerts in `/api/alerts`; active alerts are always included |
-| `MONITOR_LOG_LEVEL` | `INFO` | `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL` |
-| `MONITOR_LOG_FORMAT` | `json` | `json` or human-readable `text` |
-| `MONITOR_POLLING_INTERVAL_SECONDS` | `10` | Delay between snapshots in `--watch` mode (later: the background collection loop) |
-| `MONITOR_TOP_PROCESSES_COUNT` | `5` | Size of the top-CPU / top-memory lists |
-| `MONITOR_DISK_EXCLUDE_FSTYPES` | tmpfs, overlay, squashfs, 9p, `fuse.*`, ... | Comma-separated; `*` wildcards supported |
+| Setting | Default | Effect |
+| --- | ---: | --- |
+| `MONITOR_POLLING_INTERVAL_SECONDS` | `10` | Background collection and native UI refresh period, in seconds. |
+| `MONITOR_RETENTION_DAYS` | `7` | Metric history retention. |
+| `MONITOR_DATABASE_PATH` | `data/monitor.db` | SQLite path, relative to `backend/` unless absolute. |
+| `MONITOR_MONITORED_SERVICES` | `nginx,ssh,docker` | Comma-separated systemd units to check. The package defaults to its own `linux-monitor` service. |
+| `MONITOR_CPU_WARNING_PERCENT` / `MONITOR_CPU_CRITICAL_PERCENT` | `85` / `95` | CPU thresholds; warning must persist for 60 seconds by default. |
+| `MONITOR_MEMORY_WARNING_PERCENT` / `MONITOR_MEMORY_CRITICAL_PERCENT` | `90` / `95` | Memory thresholds, evaluated at each sample. |
+| `MONITOR_DISK_WARNING_PERCENT` / `MONITOR_DISK_CRITICAL_PERCENT` | `80` / `90` | Per-filesystem thresholds. |
+| `MONITOR_BACKEND_HOST` / `MONITOR_BACKEND_PORT` | `127.0.0.1` / `8000` | Development API bind address and port. |
 
-## Notes on WSL
+All settings, including log format, process count, history lookback, and excluded filesystem types, are documented in [.env.example](.env.example) and [backend/config/monitor.yaml](backend/config/monitor.yaml). The native package and source backend bind to localhost by default, and Compose binds its published ports to host loopback. The API has no user authentication or TLS of its own; if you deliberately change those bindings for remote access, put it behind an appropriately secured HTTPS reverse proxy and firewall.
 
-Metrics describe the **WSL2 virtual machine**, not Windows: uptime is the VM's uptime, RAM and
-core counts are whatever `.wslconfig` allots to the VM, and `/` is the VM's virtual disk.
-Windows drives (`/mnt/c`, filesystem type `9p`) are excluded from disk metrics by default.
-The `system.runtime_environment` field reports `wsl`, `container` or `host` so consumers
-know how to interpret the numbers.
+## Resource-use tradeoffs and limitations
 
-## Design decisions so far
+The low idle CPU and modest native-window memory use come from the small Tk UI, no browser runtime in native mode, and sleeping between 10-second collection cycles. They do not mean the whole installation has zero cost: the always-on backend is a separate process (about 85 MiB RSS in one local measurement), stores samples, and wakes periodically. The VM's desktop, browser, and virtual graphics stack also affect total memory and CPU.
 
-- **Collectors are read-only, side-effect-free modules** with no knowledge of storage or alerting.
-- **Rate metrics need a baseline.** CPU % and network bytes/sec are computed relative to the
-  previous poll. `SnapshotCollector.prime()` takes the baseline; the network collector is a class
-  that remembers its last sample and tolerates counter resets.
-- **CPU % is non-blocking**: it measures the window since the last poll instead of sleeping
-  inside the collector.
-- **Memory % uses *available* memory**, not *free* memory, to avoid permanent false alarms on Linux.
-- **Command lines are never collected** for processes: arguments often contain secrets.
-- **A single background thread owns the one `SnapshotCollector` instance.** `MetricsScheduler`
-  collects on `polling_interval_seconds`, keeps the latest reading in memory for `/api/metrics/current`
-  and `/api/processes`, and persists every reading for history. The API never triggers a collection
-  itself, so `/api/metrics/current` freshness is bounded by the polling interval, not by request timing.
-- **Start-up does one collection synchronously** (after a short warm-up so the first CPU/network
-  reading isn't a meaningless 0%) before the app finishes starting, so the very first request
-  already has real data instead of a 503.
-- **A storage failure never takes the live API down.** `_collect_once()` updates the in-memory
-  latest snapshot before it tries to write to SQLite; if the write fails, it's logged
-  (`metrics_persist_failed`) and history has a gap for that cycle, but `/api/metrics/current` keeps working.
-- **`minutes` on `/api/metrics/history` is clamped, not rejected**, when it exceeds the retention
-  window - since nothing older is ever kept, asking for more just returns everything there is.
-- **Pruning runs after every collection cycle** rather than on a separate timer. The delete is a
-  single indexed-column query, cheap at the row volumes a portfolio deployment produces; a
-  separate periodic job would be the next step at real scale.
-- **SQLite runs in WAL mode with a busy_timeout**, so the scheduler's writes and API's reads don't
-  block each other. `collected_at` is stored and always read back as UTC - SQLite has no native
-  timezone-aware type, so a naive value from the database is explicitly re-labelled UTC rather than
-  risking it being read as local time.
-- **Sync endpoints, not `async def`**: psutil calls block, and FastAPI runs plain `def` routes on a
-  thread pool so they cannot stall the event loop.
-- **One error contract**: handlers for validation, HTTP and unexpected errors all emit the same JSON
-  shape; 5xx responses are generic and the detail goes to the structured log.
-- **`/api/health` is a pure liveness probe** and stays green even if metric collection is failing;
-  it does not check the database or the scheduler, only that the process is answering requests.
-- **Alert states, concretely: WARNING, CRITICAL, RESOLVED - never NORMAL.** NORMAL is the absence
-  of an alert row, not a value that gets written. An alert is created as WARNING or CRITICAL, may
-  escalate or de-escalate on that same row while it stays open, and is marked RESOLVED (not deleted)
-  once the condition clears - so alert history is preserved rather than lost.
-- **One open alert per (rule, target)** is "duplicate alert prevention": `AlertsRepository.upsert_open_alert`
-  updates the existing row on a repeated breach instead of inserting a new one, enforced in
-  application logic *and* by a SQLite partial unique index (`WHERE resolved_at IS NULL`) as a second
-  line of defence - verified with a test that inserts around the repository layer and confirms the
-  database itself rejects a duplicate.
-- **Only CPU has a sustained-duration requirement** (`cpu_sustained_seconds`, default 60s), matching
-  the "CPU > 85% for at least 60 seconds" spec. Memory and disk alert on the very next collection
-  cycle. The breach timer is tracked in memory by `AlertEngine`, not the database, so it resets to
-  zero on restart - a brief spike right after a restart needs to hold for the full duration again.
-  It also resets on any single reading that dips back under the threshold, verified live: a demo run
-  showed CPU readings bouncing 1.0% / 0.0% / 4.0% on an idle sandbox, correctly preventing a
-  low-enough threshold from ever accumulating a full sustained breach.
-- **The service-down rule was built inert in Phase 4** (`evaluate_services()` takes a
-  `dict[str, bool]` of service name -> is running, but nothing supplied real data yet) **and is now
-  live in Phase 5** - the scheduler calls `check_services()`, persists the results, and passes
-  running/stopped state into the same `alert_engine.evaluate()` call, with no changes needed to the
-  rule or its dedup/resolve behaviour.
-- **Known limitation:** if a rule's target stops being observed entirely (a disk unmounted, a
-  service dropped from the monitored list) rather than merely returning to normal, any alert already
-  open for it is never automatically resolved, since no further evaluation is produced for that
-  target to trigger the resolve path. Documented in `AlertEngine`'s docstring rather than solved,
-  since reconciling "keys that used to exist" against "keys still open" would add a query and real
-  complexity for an edge case.
-- **Service state has three values, not two: RUNNING, STOPPED, UNKNOWN - and UNKNOWN is never
-  treated as down.** `systemctl` frequently can't answer at all: not installed, no systemd to talk
-  to (the normal case inside a Docker container without special setup, or WSL with systemd
-  disabled), the unit name doesn't exist, or the call times out. `service_monitor.py` collapses
-  every one of those cases to UNKNOWN with a `detail` string explaining why, rather than guessing.
-  The scheduler then leaves UNKNOWN services out of what it hands the alert engine entirely, so they
-  can never trigger a false "service down" alert - verified live on this project's own sandbox,
-  which has `systemctl` installed but no real systemd running (a containerized environment), and
-  correctly reports all three default services as UNKNOWN with zero alerts.
-- **Service status has no history table**, unlike metrics and alerts: `service_status` holds one row
-  per service, updated in place every cycle. `last_changed_at` (separate from `last_checked_at`)
-  already answers "how long has it been like this" without needing a time series, and only updates
-  when the state actually differs from what's stored - verified with a repository test and a
-  mutation check that removing that condition breaks it.
-- **Service names are case-sensitive** (`MONITOR_MONITORED_SERVICES`), unlike the filesystem-type
-  exclusion list: systemd unit names can be mixed case, so the config parser only trims whitespace
-  and never lowercases them.
-- **The frontend polls; it doesn't push.** Each section fetches on a plain interval
-  (`frontend/src/config.js`), matching how the backend itself already works (a background
-  scheduler on a fixed interval, not push notifications) and how real tools like Grafana
-  poll their datasources by default. Simpler to reason about and explain than SSE/WebSockets,
-  with no new transport layer for a backend that's already stable.
-- **The frontend never recomputes alert thresholds.** Stat cards and the disk/service lists
-  color themselves by cross-referencing the live `/api/alerts` response
-  (`frontend/src/utils/alerts.js`), not by re-implementing the Phase 4 threshold logic in
-  JavaScript - one source of truth for "what's wrong".
-- **A panel never blanks out on a failed poll**; the last successful reading stays on
-  screen with a small inline notice, since a transient 503 during backend startup
-  shouldn't flash the whole dashboard to an error state.
-- **Service checking runs every cycle independent of the alert engine** - `/api/services` needs
-  current data even if alerting were ever disabled. (This was a real bug caught during Phase 5
-  testing: an early version only checked services inside the `if alert_engine is not None` branch,
-  which a mutation test and a dedicated regression test both now guard against.)
-- **Fail-fast snapshots**: if any collector fails, `CollectionError` names it; the caller decides
-  whether to log, retry or skip the cycle.
+| Choice | Benefit | Cost / limitation |
+| --- | --- | --- |
+| 10-second sampling | Low idle work and a compact history database. | Readings and alerts can lag by nearly 10 seconds; faster polling spends more CPU and writes more often. |
+| Native desktop window | Avoids the browser runtime; the shared VM screenshot shows about 45.6 MB for its process. | Requires a graphical Linux session and Python/Tk; the web dashboard is visually richer. The backend still runs separately. |
+| Browser/PWA dashboard | Richer interface and installable browser window; no special Linux GUI toolkit. | Browser and graphics processes add memory; PWA shell caching does not cache metric data or work without the backend. |
+| Docker | Simple, repeatable setup. | Default readings describe the container. Host overlay only improves some Linux metrics; service checks remain unavailable. |
+| systemd service checks | Useful for host services on a normal Linux installation. | Requires systemd visibility/permissions. Containers and some WSL setups report `UNKNOWN`; the service account may not read every process detail. |
+| Local-only API | Safe default for a single-machine dashboard. | No built-in login, multi-user access control, or TLS; do not expose it directly to a network. |
+| SQLite | Simple, durable single-host history with no database server. | Designed for one local monitor, not a replicated or high-write fleet database. |
+
+Other scope limits: the project is Linux-focused; Windows support means monitoring Linux inside WSL, not Windows itself. Alerts currently cover CPU, memory, disk, and configured service state rather than arbitrary custom rules or notifications to email/chat. Package builds are amd64 Ubuntu releases; other architectures need their own build and verification. The GitHub Actions workflow checks the backend on Python 3.12 and 3.14 and checks the frontend; package installation and the native GUI still need their separate target-specific checks. Sensible next improvements are automating those package checks, ARM builds, optional secured remote access, more alert integrations, and a polished native view.
+
+## Development and verification
+
+Backend tests and lint:
+
+```bash
+cd backend
+source .venv/bin/activate
+pytest
+ruff check app tests ../packaging ../scripts
+ruff format --check app tests ../packaging ../scripts
+```
+
+Frontend tests and lint:
+
+```bash
+cd frontend
+npm ci
+npm test
+npm run lint
+```
+
+The native desktop integration check needs `python3-tk`, Xvfb, and `xauth` on a headless Linux machine:
+
+```bash
+xvfb-run -a python3 scripts/check_native_desktop.py
+```
+
+Packaging verification and repeatable Ubuntu builds are documented in [packaging/README.md](packaging/README.md). The [GitHub Actions workflow](.github/workflows/ci.yml) runs the backend test/lint/format checks and frontend tests/lint/build on pushes and pull requests. It does not install `.deb` packages or launch a native desktop window. Generated `.deb` files, local databases, virtual environments, Node dependencies, caches, and local `.env` files are intentionally excluded from Git.
+
+## Repository layout
+
+```text
+backend/       FastAPI API, Linux collectors, scheduler, alerts, SQLite storage
+frontend/      React/Vite dashboard, PWA shell, browser-specific documentation
+packaging/     Native Tk window, Debian metadata, package checks
+scripts/       Host-service, frontend deployment, and .deb build/check helpers
+docker-compose.yml
+docker-compose.host.yml
+```
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for the full license text.

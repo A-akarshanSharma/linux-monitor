@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Linux Server Monitor
+Comment=CPU, memory, disks, network, services, and alerts
+Exec=linux-monitor
+Icon=linux-monitor
+Terminal=false
+Categories=System;Monitor;
+StartupNotify=false

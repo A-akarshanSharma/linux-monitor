@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatClockTime, formatRate } from '../../utils/format'
 import { ChartTooltip } from './ChartTooltip'
@@ -7,7 +8,7 @@ const AXIS_TICK = { fontSize: 11, fill: 'var(--text-tertiary)' }
 const SEND_COLOR = '#4fd1c5' // --accent
 const RECV_COLOR = '#a5d6ff' // a cooler, distinct blue - "incoming" reads as the cooler tone
 
-export function NetworkChart({ data }) {
+export const NetworkChart = memo(function NetworkChart({ data }) {
   if (!data || data.length === 0) {
     return <div className="chart-empty">No history yet - check back in a few seconds.</div>
   }
@@ -71,4 +72,4 @@ export function NetworkChart({ data }) {
       </div>
     </>
   )
-}
+})

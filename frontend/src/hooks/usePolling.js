@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { startPolling } from './polling'
 
 /**
- * Fetches immediately on mount, then again every `intervalMs`, until unmounted.
+ * Fetches on mount and every `intervalMs` while visible. Refreshes on return.
  *
  * On a failed fetch, the previous successful `data` is kept on screen rather than
  * cleared - a panel should show slightly stale numbers through a transient error,
@@ -24,33 +25,25 @@ export function usePolling(fetcher, intervalMs) {
     fetcherRef.current = fetcher
   })
 
-  const load = useCallback(async () => {
-    try {
-      const result = await fetcherRef.current()
-      setData(result)
-      setError(null)
-      setLastUpdated(new Date())
-    } catch (err) {
-      setError(err)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
+  const pollingRef = useRef(null)
+  const load = useCallback(() => pollingRef.current?.refetch(), [])
 
   useEffect(() => {
-    let cancelled = false
-
-    const tick = () => {
-      if (!cancelled) load()
-    }
-
-    tick()
-    const id = setInterval(tick, intervalMs)
+    const polling = startPolling((signal) => fetcherRef.current(signal), intervalMs, {
+      success(result) {
+        setData(result)
+        setError(null)
+        setLastUpdated(new Date())
+      },
+      error: setError,
+      settled: () => setIsLoading(false),
+    })
+    pollingRef.current = polling
     return () => {
-      cancelled = true
-      clearInterval(id)
+      polling.stop()
+      pollingRef.current = null
     }
-  }, [intervalMs, load])
+  }, [intervalMs])
 
   return { data, error, isLoading, lastUpdated, refetch: load }
 }

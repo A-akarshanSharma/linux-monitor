@@ -1,0 +1,12 @@
+.venv
+.venv2
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+tests
+data
+*.db
+*.db-*
+.env
+requirements-dev.txt

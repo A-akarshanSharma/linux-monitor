@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - name: Install backend test and lint dependencies
+        run: python -m pip install -r backend/requirements-dev.txt
+      - name: Run backend tests
+        working-directory: backend
+        run: python -m pytest
+      - name: Run Ruff lint
+        working-directory: backend
+        run: ruff check app tests ../packaging ../scripts
+      - name: Check Ruff formatting
+        working-directory: backend
+        run: ruff format --check app tests ../packaging ../scripts
+
+  frontend:
+    name: Frontend (Node 22)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Run frontend tests
+        run: npm test
+      - name: Run frontend lint
+        run: npm run lint
+      - name: Build production dashboard
+        run: npm run build

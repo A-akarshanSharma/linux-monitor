@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ]; then
+    if ! getent passwd linux-monitor >/dev/null; then
+        adduser --system --group --home /var/lib/linux-monitor --no-create-home linux-monitor
+    fi
+    install -d -o linux-monitor -g linux-monitor -m 750 /var/lib/linux-monitor
+    deb-systemd-helper unmask linux-monitor.service >/dev/null || true
+    if deb-systemd-helper --quiet was-enabled linux-monitor.service; then
+        deb-systemd-helper enable linux-monitor.service >/dev/null || true
+    else
+        deb-systemd-helper update-state linux-monitor.service >/dev/null || true
+    fi
+    if [ -d /run/systemd/system ]; then
+        systemctl --system daemon-reload >/dev/null
+        deb-systemd-invoke restart linux-monitor.service >/dev/null || true
+    else
+        echo "Installed. Enable systemd in WSL, start the distribution, then open Linux Server Monitor."
+    fi
+    echo "Dashboard: http://localhost:8765 (or the port in /etc/linux-monitor/monitor.env)"
+fi

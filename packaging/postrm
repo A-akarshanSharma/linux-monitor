@@ -1,0 +1,14 @@
+#!/bin/sh
+set -e
+if [ -d /run/systemd/system ]; then
+    systemctl --system daemon-reload >/dev/null || true
+fi
+if [ "$1" = remove ]; then
+    deb-systemd-helper mask linux-monitor.service >/dev/null || true
+fi
+if [ "$1" = purge ]; then
+    deb-systemd-helper purge linux-monitor.service >/dev/null || true
+    deb-systemd-helper unmask linux-monitor.service >/dev/null || true
+fi
+# History in /var/lib/linux-monitor is retained, including on purge. The package
+# does not recursively delete user data or reuse/delete its service account.

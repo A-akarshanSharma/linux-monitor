@@ -4,6 +4,6 @@ import { ALERTS_WINDOW_MINUTES, POLL_INTERVALS_MS } from '../config'
 import { usePolling } from './usePolling'
 
 export function useAlerts(minutes = ALERTS_WINDOW_MINUTES) {
-  const fetcher = useCallback(() => api.getAlerts(minutes), [minutes])
+  const fetcher = useCallback((signal) => api.getAlerts(minutes, signal), [minutes])
   return usePolling(fetcher, POLL_INTERVALS_MS.alerts)
 }
