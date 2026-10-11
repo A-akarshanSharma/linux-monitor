@@ -85,7 +85,7 @@ export function MetricsOverview({ alerts }) {
               dataKey="cpu_percent"
               seriesName="CPU"
               color={CPU_COLOR}
-              formatValue={(v) => formatPercent(v)}
+              formatValue={formatPercent}
             />
           ) : null}
         </Panel>
@@ -104,7 +104,7 @@ export function MetricsOverview({ alerts }) {
               dataKey="ram_percent"
               seriesName="Memory"
               color={MEMORY_COLOR}
-              formatValue={(v) => formatPercent(v)}
+              formatValue={formatPercent}
             />
           ) : null}
         </Panel>

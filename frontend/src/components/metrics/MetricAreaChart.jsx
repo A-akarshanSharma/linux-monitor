@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatClockTime } from '../../utils/format'
 import { ChartTooltip } from './ChartTooltip'
@@ -7,7 +8,7 @@ const AXIS_TICK = { fontSize: 11, fill: 'var(--text-tertiary)' }
 
 /** A single-series percentage-over-time chart (0-100). Shared by CPU and
  * memory - they differ only in which field and color they plot. */
-export function MetricAreaChart({ data, dataKey, seriesName, color, formatValue }) {
+export const MetricAreaChart = memo(function MetricAreaChart({ data, dataKey, seriesName, color, formatValue }) {
   if (!data || data.length === 0) {
     return <div className="chart-empty">No history yet - check back in a few seconds.</div>
   }
@@ -61,4 +62,4 @@ export function MetricAreaChart({ data, dataKey, seriesName, color, formatValue 
       </ResponsiveContainer>
     </div>
   )
-}
+})

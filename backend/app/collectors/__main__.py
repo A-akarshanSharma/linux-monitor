@@ -12,6 +12,7 @@ import time
 
 from pydantic import ValidationError
 
+from app.collectors.procfs import apply_host_proc_override
 from app.collectors.snapshot import CollectionError, SnapshotCollector
 from app.config import get_settings
 from app.logging_config import setup_logging
@@ -46,6 +47,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     setup_logging(settings.log_level, settings.log_format)
+    apply_host_proc_override(settings)
     collector = SnapshotCollector(settings)
     collector.prime()
 

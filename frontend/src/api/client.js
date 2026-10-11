@@ -16,11 +16,16 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path) {
+async function request(path, signal) {
   let response
   try {
-    response = await fetch(`${BASE_PATH}${path}`, { headers: { Accept: 'application/json' } })
-  } catch {
+    response = await fetch(`${BASE_PATH}${path}`, {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      signal,
+    })
+  } catch (err) {
+    if (signal?.aborted) throw err
     // fetch itself threw: network down, dev proxy target unreachable, etc. - not
     // an HTTP error response, so there's no envelope to parse.
     throw new ApiError(0, 'network_error', 'Could not reach the backend.')
@@ -53,11 +58,11 @@ function query(params) {
 }
 
 export const api = {
-  getHealth: () => request('/health'),
-  getSystem: () => request('/system'),
-  getCurrentMetrics: () => request('/metrics/current'),
-  getMetricsHistory: (minutes) => request(`/metrics/history${query({ minutes })}`),
-  getProcesses: (limit) => request(`/processes${query({ limit })}`),
-  getAlerts: (minutes) => request(`/alerts${query({ minutes })}`),
-  getServices: () => request('/services'),
+  getHealth: (signal) => request('/health', signal),
+  getSystem: (signal) => request('/system', signal),
+  getCurrentMetrics: (signal) => request('/metrics/current', signal),
+  getMetricsHistory: (minutes, signal) => request(`/metrics/history${query({ minutes })}`, signal),
+  getProcesses: (limit, signal) => request(`/processes${query({ limit })}`, signal),
+  getAlerts: (minutes, signal) => request(`/alerts${query({ minutes })}`, signal),
+  getServices: (signal) => request('/services', signal),
 }

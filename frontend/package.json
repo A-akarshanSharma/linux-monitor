@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
+    "test": "npm run build && node --test tests/*.test.js",
+    "test:pwa": "npm run build && node --test tests/pwa.test.js",
     "preview": "vite preview"
   },
   "dependencies": {

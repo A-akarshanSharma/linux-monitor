@@ -55,6 +55,9 @@ class Settings(BaseSettings):
 
     backend_host: str = "127.0.0.1"
     backend_port: int = Field(default=8000, ge=1, le=65535)
+    # Packages can serve the built dashboard from the same process as the API.
+    # Empty keeps the existing API-only/nginx development and Docker setups.
+    frontend_dir: str = ""
 
     # Relative paths resolve against the backend/ directory (see get_database_path()).
     database_path: str = "data/monitor.db"
@@ -75,6 +78,14 @@ class Settings(BaseSettings):
     monitored_services: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["nginx", "ssh", "docker"]
     )
+
+    # If set (e.g. "/host/proc"), psutil reads from this path instead of the
+    # container's own /proc - for reading the *host's* metrics from inside a
+    # container that has the host's /proc bind-mounted read-only here. See
+    # docker-compose.host.yml and the README's Docker limitations section.
+    # Empty (default) means no override: psutil reads whatever /proc it can see,
+    # which is the container's own view unless this is set.
+    host_proc_path: str = ""
 
     # Alert thresholds. Each metric has a warning and a critical percentage; an open
     # alert escalates from warning to critical on the same row rather than creating a

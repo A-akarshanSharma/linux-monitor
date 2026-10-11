@@ -1,0 +1,21 @@
+[Unit]
+Description=Linux Server Monitor dashboard and metrics service
+After=network.target
+
+[Service]
+Type=simple
+User=linux-monitor
+Group=linux-monitor
+StateDirectory=linux-monitor
+StateDirectoryMode=0750
+WorkingDirectory=/var/lib/linux-monitor
+EnvironmentFile=/etc/linux-monitor/monitor.env
+ExecStart=/usr/bin/python3 -s /usr/lib/linux-monitor/server.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

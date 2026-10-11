@@ -12,14 +12,17 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
+from starlette.routing import Route
 
 from app import __version__
 from app.alerts.engine import AlertEngine
 from app.api.errors import register_exception_handlers
 from app.api.routes import api_router
+from app.collectors.procfs import apply_host_proc_override
 from app.collectors.snapshot import SnapshotCollector
 from app.collectors.system_info import detect_runtime_environment
 from app.config import Settings, get_database_path, get_settings
+from app.dashboard import DashboardFiles
 from app.database.repositories import AlertsRepository, MetricsRepository, ServicesRepository
 from app.database.session import create_session_factory
 from app.logging_config import setup_logging
@@ -39,6 +42,7 @@ Errors always use the shape `{"error": {"code", "message", "details"?}}`.
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     setup_logging(settings.log_level, settings.log_format)
+    apply_host_proc_override(settings)
 
     db_path = get_database_path(settings)
     session_factory = create_session_factory(db_path)
@@ -95,8 +99,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_exception_handlers(app)
     app.include_router(api_router)
 
-    @app.get("/", include_in_schema=False)
-    def root() -> RedirectResponse:
-        return RedirectResponse(url="/docs")
+    if app.state.settings.frontend_dir:
+        # A GET/HEAD catch-all preserves API method errors. A root mount would
+        # match every method before FastAPI could return its normal API 405.
+        app.router.routes.append(
+            Route(
+                "/{path:path}",
+                endpoint=DashboardFiles(directory=app.state.settings.frontend_dir, html=True),
+                methods=["GET", "HEAD"],
+                name="dashboard",
+            )
+        )
+    else:
+
+        @app.get("/", include_in_schema=False)
+        def root() -> RedirectResponse:
+            return RedirectResponse(url="/docs")
 
     return app

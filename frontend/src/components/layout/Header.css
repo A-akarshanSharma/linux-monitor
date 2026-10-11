@@ -54,6 +54,11 @@
   align-items: flex-end;
 }
 
+.app-header-version {
+  color: var(--text-secondary);
+  font-size: var(--text-2xs);
+}
+
 .app-header-stat-label {
   font-size: var(--text-2xs);
   color: var(--text-tertiary);
@@ -62,4 +67,18 @@
 .app-header-stat-value {
   font-size: var(--text-sm);
   font-weight: 500;
+}
+
+.app-install-button {
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-panel-raised);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.app-install-button:hover {
+  border-color: var(--accent);
 }

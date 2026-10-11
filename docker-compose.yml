@@ -1,0 +1,42 @@
+# Usage:
+#   cp .env.example .env   # optional, but recommended - see the file for what's tunable
+#   docker compose up --build
+#
+# Metrics shown by this setup describe the CONTAINER, not the physical/host machine
+# it runs on, and service monitoring (nginx/ssh/docker via systemctl) will show
+# UNKNOWN - there's no systemd inside either container. Both are expected, not bugs;
+# see the README's Docker caveats for why, and for two ways to
+# get real host data: docker-compose.host.yml (closer host metrics, native Linux only)
+# or scripts/run_host.sh (full accuracy, runs the backend directly on the host).
+
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: linux-monitor-backend
+    ports:
+      - "127.0.0.1:8000:8000" # local API/Swagger access; do not expose unauthenticated metrics to the LAN
+    environment:
+      # The .env.example is also used as env_file and sets a host-local bind for
+      # native runs. Inside Compose the API must listen on the container interface.
+      MONITOR_BACKEND_HOST: 0.0.0.0
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - backend-data:/app/data # SQLite history/alerts survive `docker compose down` (not `-v`)
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: linux-monitor-frontend
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy # waits for the backend's own HEALTHCHECK (see backend/Dockerfile)
+    restart: unless-stopped
+
+volumes:
+  backend-data:
